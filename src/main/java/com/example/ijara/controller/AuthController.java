@@ -1,9 +1,11 @@
 package com.example.ijara.controller;
 
 import com.example.ijara.dto.ApiResponse;
+import com.example.ijara.dto.request.AdminLoginRequest;
 import com.example.ijara.dto.request.LoginRequest;
 import com.example.ijara.dto.response.LoginResponse;
 import com.example.ijara.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,9 +20,18 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
+    @Operation(summary = "Userlar uchun login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @RequestBody LoginRequest request
     ){
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/admin")
+    @Operation(summary = "Admin uchun login")
+    public ResponseEntity<ApiResponse<LoginResponse>> adminLogin(
+            @RequestBody AdminLoginRequest request
+    ){
+        return ResponseEntity.ok(authService.adminLogin(request));
     }
 }

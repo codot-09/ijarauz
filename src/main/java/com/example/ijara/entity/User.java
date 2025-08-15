@@ -20,6 +20,9 @@ public class User extends BaseEntity implements UserDetails {
     @Column(nullable = false,unique = true)
     private String telegramChatId;
 
+    private String username;
+    private String passwordHash;
+
     @Column(nullable = false)
     private String firstName;
 

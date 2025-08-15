@@ -6,12 +6,16 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 @Configuration
 public class SwaggerConfig {
+
+    private static final String SECURITY_SCHEME_NAME = "bearerAuth";
 
     @Bean
     public OpenAPI customOpenAPI() {
@@ -28,11 +32,20 @@ public class SwaggerConfig {
                                 .name("Apache 2.0")
                                 .url("https://springdoc.org")))
                 .servers(List.of(
-                        new Server().url("http://localhost:8080").description("Local server"),
-                        new Server().url("https://api.yourdomain.com").description("Production server")
+                        new Server().url("http://localhost:8081").description("Local server"),
+                        new Server().url("http://176.57.150.199:8081").description("Production server")
                 ))
                 .externalDocs(new ExternalDocumentation()
                         .description("Full Documentation")
-                        .url("https://your-docs-link.com"));
+                        .url("https://your-docs-link.com"))
+                .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
+                .components(new io.swagger.v3.oas.models.Components()
+                        .addSecuritySchemes(SECURITY_SCHEME_NAME,
+                                new SecurityScheme()
+                                        .name(SECURITY_SCHEME_NAME)
+                                        .type(SecurityScheme.Type.HTTP)
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")
+                        ));
     }
 }

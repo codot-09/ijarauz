@@ -1,10 +1,12 @@
 package com.example.ijara.service.impl;
 
 import com.example.ijara.dto.ApiResponse;
+import com.example.ijara.dto.request.AdminLoginRequest;
 import com.example.ijara.dto.request.LoginRequest;
 import com.example.ijara.dto.response.LoginResponse;
 import com.example.ijara.entity.User;
 import com.example.ijara.entity.enums.UserRole;
+import com.example.ijara.exception.DataNotFoundException;
 import com.example.ijara.exception.UnauthorizedException;
 import com.example.ijara.repository.UserRepository;
 import com.example.ijara.security.JwtProvider;
@@ -52,6 +54,21 @@ public class AuthServiceImpl implements AuthService {
 
         String token = jwtProvider.generateToken(user.getTelegramChatId());
         LoginResponse response = new LoginResponse(token, user.getRole().name());
+
+        return ApiResponse.success(response);
+    }
+
+    @Override
+    public ApiResponse<LoginResponse> adminLogin(AdminLoginRequest request) {
+        User admin = userRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new DataNotFoundException("Admin topilmadi"));
+
+        if (!encoder.matches(request.getPassword(), admin.getPassword())){
+            return ApiResponse.error("Ma'lumotlar noto'g'ri");
+        }
+
+        String token = jwtProvider.generateToken(admin.getTelegramChatId());
+        LoginResponse response = new LoginResponse(token, admin.getRole().name());
 
         return ApiResponse.success(response);
     }

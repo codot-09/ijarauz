@@ -9,4 +9,5 @@ import java.util.UUID;
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByTelegramChatId(String chatId);
+    Optional<User> findByUsername(String username);
 }

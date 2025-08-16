@@ -6,6 +6,7 @@ import com.example.ijara.dto.request.LoginRequest;
 import com.example.ijara.dto.response.LoginResponse;
 import com.example.ijara.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,11 +17,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
+@Tag(name = "Autentifikatsiya API",description = "Tizimga kirish uchun endpointlar")
 public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    @Operation(summary = "Userlar uchun login")
+    @Operation(
+            summary = "Foydalanuvchilar uchun login",
+            description = "Login qismi telegram login widget asosida ishlaydi"
+    )
     public ResponseEntity<ApiResponse<LoginResponse>> login(
             @RequestBody LoginRequest request
     ){

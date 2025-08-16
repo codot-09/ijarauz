@@ -35,7 +35,6 @@ public class AuthServiceImpl implements AuthService {
         if (!verifyTelegramAuth(request)) {
             return ApiResponse.error("Invalid Telegram signature");
         }
-
         User user = userRepository.findByTelegramChatId(request.getChatId())
                 .orElseGet(() -> {
                     User newUser = User.builder()
@@ -47,14 +46,11 @@ public class AuthServiceImpl implements AuthService {
                             .build();
                     return userRepository.save(newUser);
                 });
-
         if (!user.isActive()) {
             throw new UnauthorizedException("Kirish taqiqlanadi");
         }
-
         String token = jwtProvider.generateToken(user.getTelegramChatId());
         LoginResponse response = new LoginResponse(token, user.getRole().name());
-
         return ApiResponse.success(response);
     }
 
@@ -62,39 +58,32 @@ public class AuthServiceImpl implements AuthService {
     public ApiResponse<LoginResponse> adminLogin(AdminLoginRequest request) {
         User admin = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new DataNotFoundException("Admin topilmadi"));
-
         if (!encoder.matches(request.getPassword(), admin.getPassword())){
             return ApiResponse.error("Ma'lumotlar noto'g'ri");
         }
-
         String token = jwtProvider.generateToken(admin.getTelegramChatId());
         LoginResponse response = new LoginResponse(token, admin.getRole().name());
-
         return ApiResponse.success(response);
     }
 
     private boolean verifyTelegramAuth(LoginRequest request) {
         try {
-            String botToken = "8041989382:AAGXYWYzraG-qCSkKomsugcMKWBTstzhqNU";
+            String botToken = "8262839503:AAGeXC5t_TwuvJH5A0ZZuR6hoHzKuV_5CPg";
             Map<String, String> data = new TreeMap<>();
             data.put("auth_date", request.getAuthDate());
             data.put("first_name", request.getFirstName());
             if (request.getLastName() != null) data.put("last_name", request.getLastName());
             if (request.getUsername() != null) data.put("username", request.getUsername());
             data.put("id", request.getChatId());
-
             String dataCheckString = data.entrySet().stream()
                     .map(e -> e.getKey() + "=" + e.getValue())
                     .collect(Collectors.joining("\n"));
-
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] secretKey = digest.digest(botToken.getBytes(StandardCharsets.UTF_8));
-
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secretKey, "HmacSHA256"));
             byte[] hmac = mac.doFinal(dataCheckString.getBytes(StandardCharsets.UTF_8));
             String calculatedHash = DatatypeConverter.printHexBinary(hmac).toLowerCase();
-
             return calculatedHash.equals(request.getHash());
         } catch (Exception e) {
             return false;

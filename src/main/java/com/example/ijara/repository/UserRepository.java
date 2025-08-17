@@ -1,6 +1,7 @@
 package com.example.ijara.repository;
 
 import com.example.ijara.entity.User;
+import com.example.ijara.entity.enums.UserRole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,4 +27,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             @Param("role") String role,
             Pageable pageable
     );
+
+    Optional<User> findByIdAndRole(UUID id, UserRole role);
 }

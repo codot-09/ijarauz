@@ -4,7 +4,6 @@ import com.example.ijara.dto.ApiResponse;
 import com.example.ijara.dto.ProductDTO;
 import com.example.ijara.dto.request.ReqProduct;
 import com.example.ijara.dto.response.ResPageable;
-import com.example.ijara.dto.response.ResProduct;
 import com.example.ijara.entity.User;
 import com.example.ijara.entity.enums.ProductCondition;
 import com.example.ijara.entity.enums.ProductType;

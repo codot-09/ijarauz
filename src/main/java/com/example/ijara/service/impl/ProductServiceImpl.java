@@ -133,14 +133,37 @@ public class ProductServiceImpl implements ProductService {
         // productType null yuborishi uchun
         String type = productType != null ? productType.name() : null;
 
-        Page<ResProduct> resProducts = productRepository.searchProduct(name, type, PageRequest.of(page, size));
+        Page<Product> product = productRepository.searchProduct(name, type, PageRequest.of(page, size));
+        if (product.getTotalElements() == 0){
+            return ApiResponse.error("Product topilmadi");
+        }
+
+        List<ResProduct> resProducts = new ArrayList<>();
+
+        for (Product product1 : product.getContent()) {
+            ProductPrice price = productPriceRepository.findByProductIdAndProductPriceType(product1.getId(), ProductPriceType.DAY);
+            ResProduct productDTO = ResProduct.builder()
+                    .id(product1.getId())
+                    .name(product1.getName())
+                    .description(product1.getDescription())
+                    .imgUrls(product1.getImgUrls())
+                    .lat(product1.getLat())
+                    .lng(product1.getLng())
+                    .rating(averageRating(feedbackRepository.findAllByProductId(product1.getId())))
+                    .productCondition(product1.getProductCondition().name())
+                    .productType(product1.getProductType().name())
+                    .price(price.getPrice())
+                    .build();
+            resProducts.add(productDTO);
+        }
+
 
         ResPageable resPageable = ResPageable.builder()
                 .page(page)
                 .size(size)
-                .totalElements(resProducts.getTotalElements())
-                .totalPage(resProducts.getTotalPages())
-                .body(resProducts.getContent())
+                .totalElements(product.getTotalElements())
+                .totalPage(product.getTotalPages())
+                .body(resProducts)
                 .build();
         return ApiResponse.success(resPageable);
     }

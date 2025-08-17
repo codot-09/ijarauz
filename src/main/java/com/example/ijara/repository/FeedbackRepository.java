@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface FeedbackRepository extends JpaRepository<Feedback, UUID> {
     List<Feedback> findAllByProductId(UUID productId);
+    List<Feedback> findAllByUserId(UUID userId);
 }

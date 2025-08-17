@@ -58,7 +58,7 @@ public class AuthServiceImpl implements AuthService {
     public ApiResponse<LoginResponse> adminLogin(AdminLoginRequest request) {
         User admin = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new DataNotFoundException("Admin topilmadi"));
-        if (!encoder.matches(request.getPassword(), admin.getPassword())){
+        if (!encoder.matches(request.getPassword(), admin.getPasswordHash())){
             return ApiResponse.error("Ma'lumotlar noto'g'ri");
         }
         String token = jwtProvider.generateToken(admin.getTelegramChatId());

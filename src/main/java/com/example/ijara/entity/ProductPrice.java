@@ -21,7 +21,8 @@ public class ProductPrice {
     @ManyToOne
     private Product product;
 
-    private BigDecimal price;
+    private double price;
 
+    @Enumerated(EnumType.STRING)
     private ProductPriceType productPriceType;
 }

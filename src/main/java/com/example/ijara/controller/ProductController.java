@@ -57,11 +57,14 @@ public class ProductController {
     @GetMapping
     @Operation(summary = "Barcha productlarni kurish uchun va filter api",
                description = "Agar barcha parametrlar bush yuborilsa barchasi keladi")
-    public ResponseEntity<ApiResponse<ResPageable>> searchProduct(@RequestParam(required = false) String name,
-                                                                  @RequestParam(required = false) ProductType productType,
-                                                                  @RequestParam(defaultValue = "0") int page,
-                                                                  @RequestParam(defaultValue = "10") int size){
-        return ResponseEntity.ok(productService.getAllProduct(name, productType, page, size));
+    public ResponseEntity<ApiResponse<ResPageable>> searchProduct(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) ProductType productType,
+            @RequestParam(required = false, defaultValue = "true") boolean active,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ){
+        return ResponseEntity.ok(productService.getAllProduct(name, productType, active, page, size));
     }
 
 

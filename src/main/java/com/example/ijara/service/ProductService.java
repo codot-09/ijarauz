@@ -14,6 +14,6 @@ public interface ProductService {
     ApiResponse<String> addProduct(User user, ReqProduct reqProduct, ProductCondition productCondition, ProductType productType);
     ApiResponse<String> updateProduct(UUID id, User user, ReqProduct reqProduct, ProductCondition productCondition, ProductType productType);
     ApiResponse<String> deleteProduct(UUID id, User user);
-    ApiResponse<ResPageable> getAllProduct(String name, ProductType productType, int page, int size);
+    ApiResponse<ResPageable> getAllProduct(String name, ProductType productType, boolean active, int page, int size);
     ApiResponse<ProductDTO> getProduct(UUID id);
 }

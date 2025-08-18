@@ -14,6 +14,7 @@ import com.example.ijara.entity.User;
 import com.example.ijara.entity.enums.ProductCondition;
 import com.example.ijara.entity.enums.ProductPriceType;
 import com.example.ijara.entity.enums.ProductType;
+import com.example.ijara.entity.enums.UserRole;
 import com.example.ijara.exception.DataNotFoundException;
 import com.example.ijara.repository.FeedbackRepository;
 import com.example.ijara.repository.ProductPriceRepository;
@@ -22,8 +23,11 @@ import com.example.ijara.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -137,11 +141,11 @@ public class ProductServiceImpl implements ProductService {
 
 
     @Override
-    public ApiResponse<ResPageable> getAllProduct(String name, ProductType productType, int page, int size) {
+    public ApiResponse<ResPageable> getAllProduct(String name, ProductType productType, boolean active, int page, int size) {
         // productType null yuborishi uchun
         String type = productType != null ? productType.name() : null;
 
-        Page<Product> product = productRepository.searchProduct(name, type, PageRequest.of(page, size));
+        Page<Product> product = productRepository.searchProduct(name, type, true, PageRequest.of(page, size));
         if (product.getTotalElements() == 0){
             return ApiResponse.error("Product topilmadi");
         }
@@ -202,6 +206,29 @@ public class ProductServiceImpl implements ProductService {
                 .reqProductPrices(reqProductPrices)
                 .build();
         return ApiResponse.success(productDTO);
+    }
+
+
+    @Scheduled(fixedRate = 3600000)
+    private void unActiveProduct(){
+        // hozirgi vaqtni olish
+        LocalDateTime localDateTime = LocalDateTime.now();
+
+        // barcha productlarni topib bittasini olish
+        for (Product product : productRepository.findAll()) {
+
+            // o'rtadagi vaqtni aniqlash, necha soat bulganini
+            long hour = Duration.between(product.getCreatedAt(), localDateTime).toHours();
+
+            //user roli tekshirildi
+            if (!product.getOwner().getRole().equals(UserRole.COMPANY)){
+                //agar 48 soatdan katta yoki teng bulsa active = false
+                if (hour >= 48){
+                    product.setActive(false);
+                    productRepository.save(product);
+                }
+            }
+        }
     }
 
 

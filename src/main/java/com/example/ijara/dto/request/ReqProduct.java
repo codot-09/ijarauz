@@ -30,6 +30,8 @@ public class ReqProduct {
     @NotBlank
     private double lng;
 
+    private int count;
+
     @NotBlank
     private List<ReqProductPrice> reqProductPrices;
 }

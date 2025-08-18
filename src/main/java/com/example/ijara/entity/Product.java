@@ -33,7 +33,10 @@ public class Product extends BaseEntity {
 
     private double lat;
     private double lng;
+    private int count;
 
     @Enumerated(EnumType.STRING)
     private ProductCondition productCondition;
+
+    private boolean active;
 }

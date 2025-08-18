@@ -33,6 +33,8 @@ public class ProductDTO {
 
     private double lng;
 
+    private int count;
+
     private List<String> imgUrls;
 
     private List<ReqProductPrice> reqProductPrices;

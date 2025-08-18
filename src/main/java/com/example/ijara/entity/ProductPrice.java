@@ -25,4 +25,6 @@ public class ProductPrice {
 
     @Enumerated(EnumType.STRING)
     private ProductPriceType productPriceType;
+
+    private boolean active;
 }

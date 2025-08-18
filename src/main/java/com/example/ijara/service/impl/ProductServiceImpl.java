@@ -47,6 +47,8 @@ public class ProductServiceImpl implements ProductService {
                 .owner(user)
                 .productCondition(productCondition)
                 .productType(productType)
+                .count(reqProduct.getCount())
+                .active(true)
                 .build();
         Product save = productRepository.save(product);
 
@@ -56,6 +58,7 @@ public class ProductServiceImpl implements ProductService {
                         .product(save)
                         .productPriceType(ProductPriceType.valueOf(productPrice.getProductPriceType()))
                         .price(productPrice.getPrice())
+                        .active(true)
                         .build();
                 productPriceRepository.save(build);
             }
@@ -68,7 +71,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ApiResponse<String> updateProduct(UUID id, User user, ReqProduct reqProduct, ProductCondition productCondition, ProductType productType) {
-        Product product = productRepository.findById(id).orElseThrow(
+        Product product = productRepository.findByIdAndActiveTrue(id).orElseThrow(
                 () -> new DataNotFoundException("Product not found")
         );
 
@@ -82,6 +85,7 @@ public class ProductServiceImpl implements ProductService {
         product.setLng(reqProduct.getLng());
         product.setImgUrls(reqProduct.getImgUrls());
         product.setOwner(user);
+        product.setCount(reqProduct.getCount());
         product.setProductCondition(productCondition);
         product.setProductType(productType);
 
@@ -119,9 +123,13 @@ public class ProductServiceImpl implements ProductService {
 
         List<ProductPrice> allByProductId = productPriceRepository.findAllByProductId(id);
 
-        productPriceRepository.deleteAll(allByProductId);
+        for (ProductPrice productPrice : allByProductId) {
+            productPrice.setActive(false);
+            productPriceRepository.save(productPrice);
+        }
 
-        productRepository.delete(product);
+        product.setActive(false);
+        productRepository.save(product);
 
         return ApiResponse.success("Product deleted successfully");
     }
@@ -172,7 +180,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ApiResponse<ProductDTO> getProduct(UUID id) {
-        Product product = productRepository.findById(id).orElseThrow(
+        Product product = productRepository.findByIdAndActiveTrue(id).orElseThrow(
                 () -> new DataNotFoundException("Product topilmadi")
         );
 
@@ -187,6 +195,7 @@ public class ProductServiceImpl implements ProductService {
                 .lng(product.getLng())
                 .imgUrls(product.getImgUrls())
                 .feedbackList(resFeedbacks)
+                .count(product.getCount())
                 .productCondition(product.getProductCondition().name())
                 .productType(product.getProductType().name())
                 .rating(averageRating(feedbackRepository.findAllByProductId(product.getId())))

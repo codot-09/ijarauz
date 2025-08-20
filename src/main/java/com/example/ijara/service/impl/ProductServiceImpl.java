@@ -79,7 +79,7 @@ public class ProductServiceImpl implements ProductService {
                 () -> new DataNotFoundException("Product not found")
         );
 
-        if (!product.getOwner().equals(user)) {
+        if (!product.getOwner().getId().equals(user.getId())) {
             return ApiResponse.error("Bu sizning mahsulotingiz emas");
         }
 

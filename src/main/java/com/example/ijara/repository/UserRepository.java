@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,4 +31,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     );
 
     Optional<User> findByIdAndRole(UUID id, UserRole role);
+
+    @Query(value = """
+        select u.* from users u where active = true and role <> 'ROLE_ADMIN'
+    """, nativeQuery = true)
+    List<User> findAllByRoleAndEnabledTrue();
 }

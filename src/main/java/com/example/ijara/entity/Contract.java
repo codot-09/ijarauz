@@ -21,17 +21,20 @@ public class Contract extends BaseEntity {
     private User owner;
 
     @ManyToOne
-    private User lessee;
+    private User lessee;  //ijara oluvchi
 
-    @ManyToMany
-    private List<Product> productList;
+    @ManyToOne
+    private Product product;
 
     private LocalDateTime startDateTime;
 
     private LocalDateTime endDateTime;
 
-    private BigDecimal price;
+    private double price;
 
     @Enumerated(EnumType.STRING)
     private ContractStatus contractStatus;
+
+
+    private boolean active;
 }

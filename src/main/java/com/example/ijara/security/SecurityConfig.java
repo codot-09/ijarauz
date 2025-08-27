@@ -1,6 +1,5 @@
 package com.example.ijara.security;
 
-import com.example.ijara.security.JwtFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -65,9 +64,10 @@ public class SecurityConfig {
     private CorsConfiguration corsConfiguration() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
-                "https://f45bc66fae3e.ngrok-free.app/",
+                "https://7010a6ad57b7.ngrok-free.app",
                 "http://localhost:8081/",
-                "http://176.57.150.199:8081/"
+                "http://176.57.150.199:8081/",
+                "http://127.0.0.1:5500/"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

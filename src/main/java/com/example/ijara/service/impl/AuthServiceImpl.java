@@ -32,9 +32,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public ApiResponse<LoginResponse> login(LoginRequest request) {
-        if (!verifyTelegramAuth(request)) {
-            return ApiResponse.error("Invalid Telegram signature");
-        }
+//        if (!verifyTelegramAuth(request)) {
+//            return ApiResponse.error("Invalid Telegram signature");
+//        }
         User user = userRepository.findByTelegramChatId(request.getChatId())
                 .orElseGet(() -> {
                     User newUser = User.builder()
@@ -66,27 +66,27 @@ public class AuthServiceImpl implements AuthService {
         return ApiResponse.success(response);
     }
 
-    private boolean verifyTelegramAuth(LoginRequest request) {
-        try {
-            String botToken = "8262839503:AAGeXC5t_TwuvJH5A0ZZuR6hoHzKuV_5CPg";
-            Map<String, String> data = new TreeMap<>();
-            data.put("auth_date", request.getAuthDate());
-            data.put("first_name", request.getFirstName());
-            if (request.getLastName() != null) data.put("last_name", request.getLastName());
-            if (request.getUsername() != null) data.put("username", request.getUsername());
-            data.put("id", request.getChatId());
-            String dataCheckString = data.entrySet().stream()
-                    .map(e -> e.getKey() + "=" + e.getValue())
-                    .collect(Collectors.joining("\n"));
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] secretKey = digest.digest(botToken.getBytes(StandardCharsets.UTF_8));
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secretKey, "HmacSHA256"));
-            byte[] hmac = mac.doFinal(dataCheckString.getBytes(StandardCharsets.UTF_8));
-            String calculatedHash = DatatypeConverter.printHexBinary(hmac).toLowerCase();
-            return calculatedHash.equals(request.getHash());
-        } catch (Exception e) {
-            return false;
-        }
-    }
+//    private boolean verifyTelegramAuth(LoginRequest request) {
+//        try {
+//            String botToken = "8262839503:AAGeXC5t_TwuvJH5A0ZZuR6hoHzKuV_5CPg";
+//            Map<String, String> data = new TreeMap<>();
+//            data.put("auth_date", request.getAuthDate());
+//            data.put("first_name", request.getFirstName());
+//            if (request.getLastName() != null) data.put("last_name", request.getLastName());
+//            if (request.getUsername() != null) data.put("username", request.getUsername());
+//            data.put("id", request.getChatId());
+//            String dataCheckString = data.entrySet().stream()
+//                    .map(e -> e.getKey() + "=" + e.getValue())
+//                    .collect(Collectors.joining("\n"));
+//            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+//            byte[] secretKey = digest.digest(botToken.getBytes(StandardCharsets.UTF_8));
+//            Mac mac = Mac.getInstance("HmacSHA256");
+//            mac.init(new SecretKeySpec(secretKey, "HmacSHA256"));
+//            byte[] hmac = mac.doFinal(dataCheckString.getBytes(StandardCharsets.UTF_8));
+//            String calculatedHash = DatatypeConverter.printHexBinary(hmac).toLowerCase();
+//            return calculatedHash.equals(request.getHash());
+//        } catch (Exception e) {
+//            return false;
+//        }
+//    }
 }

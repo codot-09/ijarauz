@@ -32,6 +32,8 @@ public class ReqProduct {
 
     private int count;
 
+    private UUID categoryId;
+
     @NotBlank
     private List<ReqProductPrice> reqProductPrices;
 }

@@ -7,15 +7,12 @@ import com.example.ijara.dto.request.ReqProductPrice;
 import com.example.ijara.dto.response.ResFeedback;
 import com.example.ijara.dto.response.ResPageable;
 import com.example.ijara.dto.response.ResProduct;
-import com.example.ijara.entity.Feedback;
-import com.example.ijara.entity.Product;
-import com.example.ijara.entity.ProductPrice;
-import com.example.ijara.entity.User;
+import com.example.ijara.entity.*;
 import com.example.ijara.entity.enums.ProductCondition;
 import com.example.ijara.entity.enums.ProductPriceType;
-import com.example.ijara.entity.enums.ProductType;
 import com.example.ijara.entity.enums.UserRole;
 import com.example.ijara.exception.DataNotFoundException;
+import com.example.ijara.repository.CategoryRepository;
 import com.example.ijara.repository.FeedbackRepository;
 import com.example.ijara.repository.ProductPriceRepository;
 import com.example.ijara.repository.ProductRepository;
@@ -39,9 +36,15 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final ProductPriceRepository productPriceRepository;
     private final FeedbackRepository feedbackRepository;
+    private final CategoryRepository categoryRepository;
 
     @Override
-    public ApiResponse<String> addProduct(User user, ReqProduct reqProduct, ProductCondition productCondition, ProductType productType) {
+    public ApiResponse<String> addProduct(User user, ReqProduct reqProduct, ProductCondition productCondition) {
+
+        Category category = categoryRepository.findById(reqProduct.getCategoryId()).orElseThrow(
+                () -> new DataNotFoundException("Category not found")
+        );
+
         Product product = Product.builder()
                 .name(reqProduct.getName())
                 .description(reqProduct.getDescription())
@@ -50,7 +53,7 @@ public class ProductServiceImpl implements ProductService {
                 .imgUrls(reqProduct.getImgUrls())
                 .owner(user)
                 .productCondition(productCondition)
-                .productType(productType)
+                .category(category)
                 .count(reqProduct.getCount())
                 .active(true)
                 .build();
@@ -74,7 +77,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public ApiResponse<String> updateProduct(UUID id, User user, ReqProduct reqProduct, ProductCondition productCondition, ProductType productType) {
+    public ApiResponse<String> updateProduct(UUID id, User user, ReqProduct reqProduct, ProductCondition productCondition) {
         Product product = productRepository.findByIdAndActiveTrue(id).orElseThrow(
                 () -> new DataNotFoundException("Product not found")
         );
@@ -82,6 +85,10 @@ public class ProductServiceImpl implements ProductService {
         if (!product.getOwner().getId().equals(user.getId())) {
             return ApiResponse.error("Bu sizning mahsulotingiz emas");
         }
+
+        Category category = categoryRepository.findById(reqProduct.getCategoryId()).orElseThrow(
+                () -> new DataNotFoundException("Category not found")
+        );
 
         product.setName(reqProduct.getName());
         product.setDescription(reqProduct.getDescription());
@@ -91,7 +98,7 @@ public class ProductServiceImpl implements ProductService {
         product.setOwner(user);
         product.setCount(reqProduct.getCount());
         product.setProductCondition(productCondition);
-        product.setProductType(productType);
+        product.setCategory(category);
 
         Product save = productRepository.save(product);
 
@@ -141,11 +148,10 @@ public class ProductServiceImpl implements ProductService {
 
 
     @Override
-    public ApiResponse<ResPageable> getAllProduct(String name, ProductType productType, boolean active, int page, int size) {
+    public ApiResponse<ResPageable> getAllProduct(String name, String categoryName, boolean active, int page, int size) {
         // productType null yuborishi uchun
-        String type = productType != null ? productType.name() : null;
 
-        Page<Product> product = productRepository.searchProduct(name, type, true, PageRequest.of(page, size));
+        Page<Product> product = productRepository.searchProduct(name, categoryName, true, PageRequest.of(page, size));
         if (product.getTotalElements() == 0){
             return ApiResponse.error("Product topilmadi");
         }
@@ -163,7 +169,7 @@ public class ProductServiceImpl implements ProductService {
                     .lng(product1.getLng())
                     .rating(averageRating(feedbackRepository.findAllByProductId(product1.getId())))
                     .productCondition(product1.getProductCondition().name())
-                    .productType(product1.getProductType().name())
+                    .productType(product1.getCategory().getName())
                     .price(price.getPrice())
                     .build();
             resProducts.add(productDTO);
@@ -201,7 +207,7 @@ public class ProductServiceImpl implements ProductService {
                 .feedbackList(resFeedbacks)
                 .count(product.getCount())
                 .productCondition(product.getProductCondition().name())
-                .productType(product.getProductType().name())
+                .productType(product.getCategory().getName())
                 .rating(averageRating(feedbackRepository.findAllByProductId(product.getId())))
                 .reqProductPrices(reqProductPrices)
                 .build();

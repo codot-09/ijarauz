@@ -6,7 +6,6 @@ import com.example.ijara.dto.request.ReqProduct;
 import com.example.ijara.dto.response.ResPageable;
 import com.example.ijara.entity.User;
 import com.example.ijara.entity.enums.ProductCondition;
-import com.example.ijara.entity.enums.ProductType;
 import com.example.ijara.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
@@ -26,10 +25,9 @@ public class ProductController {
     @Operation(summary = "Product qushish",
             description = "productPriceType 'HOUR', 'MONTH', 'DAY', 'YEAR' qilib kiritiladi")
     public ResponseEntity<ApiResponse<String>> saveProduct(@AuthenticationPrincipal User user,
-                                                           @RequestParam ProductType productType,
                                                            @RequestParam ProductCondition productCondition,
                                                            @RequestBody ReqProduct reqProduct){
-        return ResponseEntity.ok(productService.addProduct(user, reqProduct, productCondition, productType));
+        return ResponseEntity.ok(productService.addProduct(user, reqProduct, productCondition));
     }
 
 
@@ -39,10 +37,9 @@ public class ProductController {
             description = "productPriceType 'HOUR', 'MONTH', 'DAY', 'YEAR' qilib kiritiladi")
     public ResponseEntity<ApiResponse<String>> updateProduct(@PathVariable UUID id,
                                                              @AuthenticationPrincipal User user,
-                                                             @RequestParam ProductType productType,
                                                              @RequestParam ProductCondition productCondition,
                                                              @RequestBody ReqProduct reqProduct){
-        return ResponseEntity.ok(productService.updateProduct(id, user, reqProduct, productCondition, productType));
+        return ResponseEntity.ok(productService.updateProduct(id, user, reqProduct, productCondition));
     }
 
 
@@ -59,12 +56,12 @@ public class ProductController {
                description = "Agar barcha parametrlar bush yuborilsa barchasi keladi")
     public ResponseEntity<ApiResponse<ResPageable>> searchProduct(
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) ProductType productType,
+            @RequestParam(required = false) String categoryName,
             @RequestParam(required = false, defaultValue = "true") boolean active,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ){
-        return ResponseEntity.ok(productService.getAllProduct(name, productType, active, page, size));
+        return ResponseEntity.ok(productService.getAllProduct(name, categoryName, active, page, size));
     }
 
 

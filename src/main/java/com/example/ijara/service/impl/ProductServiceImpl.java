@@ -22,10 +22,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-
-import java.time.Duration;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,243 +37,213 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
 
     @Override
-    public ApiResponse<String> addProduct(User user, ReqProduct reqProduct, ProductCondition productCondition) {
-
-        Category category = categoryRepository.findById(reqProduct.getCategoryId()).orElseThrow(
-                () -> new DataNotFoundException("Category not found")
-        );
+    @Transactional
+    public ApiResponse<String> addProduct(User owner, ReqProduct req, ProductCondition condition) {
+        Category category = getCategoryById(req.getCategoryId());
 
         Product product = Product.builder()
-                .name(reqProduct.getName())
-                .description(reqProduct.getDescription())
-                .lat(reqProduct.getLat())
-                .lng(reqProduct.getLng())
-                .imgUrls(reqProduct.getImgUrls())
-                .owner(user)
-                .productCondition(productCondition)
+                .name(req.getName())
+                .description(req.getDescription())
+                .lat(req.getLat())
+                .lng(req.getLng())
+                .imgUrls(req.getImgUrls())
+                .owner(owner)
                 .category(category)
-                .count(reqProduct.getCount())
+                .productCondition(condition)
+                .count(req.getCount())
                 .active(true)
                 .build();
-        Product save = productRepository.save(product);
 
-        if (!reqProduct.getReqProductPrices().isEmpty()) {
-            for (ReqProductPrice productPrice : reqProduct.getReqProductPrices()) {
-                ProductPrice build = ProductPrice.builder()
-                        .product(save)
-                        .productPriceType(ProductPriceType.valueOf(productPrice.getProductPriceType()))
-                        .price(productPrice.getPrice())
-                        .active(true)
-                        .build();
-                productPriceRepository.save(build);
-            }
+        product = productRepository.save(product);
+        saveProductPrices(product, req.getReqProductPrices());
 
-        }
-
-        return ApiResponse.success("Product added successfully");
-
+        return ApiResponse.success("Mahsulot muvaffaqiyatli qo‘shildi");
     }
 
     @Override
-    public ApiResponse<String> updateProduct(UUID id, User user, ReqProduct reqProduct, ProductCondition productCondition) {
-        Product product = productRepository.findByIdAndActiveTrue(id).orElseThrow(
-                () -> new DataNotFoundException("Product not found")
-        );
+    @Transactional
+    public ApiResponse<String> updateProduct(UUID productId, User user, ReqProduct req, ProductCondition condition) {
+        Product product = getActiveProductByIdAndOwner(productId, user.getId());
+        Category category = getCategoryById(req.getCategoryId());
 
-        if (!product.getOwner().getId().equals(user.getId())) {
-            return ApiResponse.error("Bu sizning mahsulotingiz emas");
-        }
-
-        Category category = categoryRepository.findById(reqProduct.getCategoryId()).orElseThrow(
-                () -> new DataNotFoundException("Category not found")
-        );
-
-        product.setName(reqProduct.getName());
-        product.setDescription(reqProduct.getDescription());
-        product.setLat(reqProduct.getLat());
-        product.setLng(reqProduct.getLng());
-        product.setImgUrls(reqProduct.getImgUrls());
-        product.setOwner(user);
-        product.setCount(reqProduct.getCount());
-        product.setProductCondition(productCondition);
+        product.setName(req.getName());
+        product.setDescription(req.getDescription());
+        product.setLat(req.getLat());
+        product.setLng(req.getLng());
+        product.setImgUrls(req.getImgUrls());
+        product.setCount(req.getCount());
+        product.setProductCondition(condition);
         product.setCategory(category);
 
-        Product save = productRepository.save(product);
+        productRepository.save(product);
+        productPriceRepository.deleteByProductId(productId);
+        saveProductPrices(product, req.getReqProductPrices());
 
-        if (!reqProduct.getReqProductPrices().isEmpty()) {
-            //Eski ruyhatni uchirib yangi yaratiladi
-            List<ProductPrice> allByProductId = productPriceRepository.findAllByProductId(id);
-            productPriceRepository.deleteAll(allByProductId);
-
-            for (ReqProductPrice productPrice : reqProduct.getReqProductPrices()) {
-                ProductPrice build = ProductPrice.builder()
-                        .product(save)
-                        .productPriceType(ProductPriceType.valueOf(productPrice.getProductPriceType()))
-                        .price(productPrice.getPrice())
-                        .build();
-                productPriceRepository.save(build);
-            }
-
-        }
-
-        return ApiResponse.success("Product updated successfully");
+        return ApiResponse.success("Mahsulot muvaffaqiyatli yangilandi");
     }
 
-
     @Override
-    public ApiResponse<String> deleteProduct(UUID id, User user) {
-        Product product = productRepository.findById(id).orElseThrow(
-                () -> new DataNotFoundException("Product topiladi")
-        );
-
-        if (!product.getOwner().equals(user)) {
-            return ApiResponse.error("Bu sizning mahsulotingiz emas");
-        }
-
-        List<ProductPrice> allByProductId = productPriceRepository.findAllByProductId(id);
-
-        for (ProductPrice productPrice : allByProductId) {
-            productPrice.setActive(false);
-            productPriceRepository.save(productPrice);
-        }
+    @Transactional
+    public ApiResponse<String> deleteProduct(UUID productId, User user) {
+        Product product = getProductByIdAndOwner(productId, user.getId());
 
         product.setActive(false);
         productRepository.save(product);
 
-        return ApiResponse.success("Product deleted successfully");
+        productPriceRepository.deactivateByProductId(productId);
+        return ApiResponse.success("Mahsulot muvaffaqiyatli o‘chirildi");
     }
 
-
-
     @Override
-    public ApiResponse<ResPageable> getAllProduct(String name, String categoryName, boolean active, int page, int size) {
-        // productType null yuborishi uchun
+    public ApiResponse<ResPageable> getAllProducts(String name, UUID categoryId, int page, int size) {
+        Page<Product> products = productRepository.searchProduct(name, categoryId, true, PageRequest.of(page, size));
 
-        Page<Product> product = productRepository.searchProduct(name, categoryName, true, PageRequest.of(page, size));
-        if (product.getTotalElements() == 0){
-            return ApiResponse.error("Product topilmadi");
+        if (products.isEmpty()) {
+            return ApiResponse.error("Mahsulotlar topilmadi");
         }
 
-        List<ResProduct> resProducts = new ArrayList<>();
+        List<ResProduct> list = products.stream()
+                .map(this::toResProduct)
+                .toList();
 
-        for (Product product1 : product.getContent()) {
-            ProductPrice price = productPriceRepository.findByProductIdAndProductPriceType(product1.getId(), ProductPriceType.DAY);
-            ResProduct productDTO = ResProduct.builder()
-                    .id(product1.getId())
-                    .name(product1.getName())
-                    .description(product1.getDescription())
-                    .imgUrls(product1.getImgUrls())
-                    .lat(product1.getLat())
-                    .lng(product1.getLng())
-                    .rating(averageRating(feedbackRepository.findAllByProductId(product1.getId())))
-                    .productCondition(product1.getProductCondition().name())
-                    .productType(product1.getCategory().getName())
-                    .price(price.getPrice())
-                    .build();
-            resProducts.add(productDTO);
-        }
-
-
-        ResPageable resPageable = ResPageable.builder()
+        ResPageable response = ResPageable.builder()
                 .page(page)
                 .size(size)
-                .totalElements(product.getTotalElements())
-                .totalPage(product.getTotalPages())
-                .body(resProducts)
+                .totalElements(products.getTotalElements())
+                .totalPage(products.getTotalPages())
+                .body(list)
                 .build();
-        return ApiResponse.success(resPageable);
+
+        return ApiResponse.success(response);
     }
 
-
-
     @Override
-    public ApiResponse<ProductDTO> getProduct(UUID id) {
-        Product product = productRepository.findByIdAndActiveTrue(id).orElseThrow(
-                () -> new DataNotFoundException("Product topilmadi")
-        );
+    public ApiResponse<ProductDTO> getProductById(UUID productId) {
+        Product product = getActiveProductById(productId);
 
-        List<ResFeedback> resFeedbacks = convertFeedbackInDTO(feedbackRepository.findAllByProductId(product.getId()));
-        List<ReqProductPrice> reqProductPrices = convertPriceInDTO(productPriceRepository.findAllByProductId(product.getId()));
+        List<Feedback> feedbackEntities = feedbackRepository.findAllByProductId(productId);
 
-        ProductDTO productDTO = ProductDTO.builder()
+        List<ResFeedback> feedbacks = feedbackEntities.stream()
+                .map(this::toResFeedback)
+                .toList();
+
+        List<ReqProductPrice> prices = productPriceRepository.findAllByProductId(productId)
+                .stream()
+                .map(this::toReqProductPrice)
+                .toList();
+
+        double avgRating = calculateAverageRating(feedbackEntities);
+
+        ProductDTO dto = ProductDTO.builder()
                 .id(product.getId())
                 .name(product.getName())
                 .description(product.getDescription())
                 .lat(product.getLat())
                 .lng(product.getLng())
                 .imgUrls(product.getImgUrls())
-                .feedbackList(resFeedbacks)
                 .count(product.getCount())
                 .productCondition(product.getProductCondition().name())
                 .productType(product.getCategory().getName())
-                .rating(averageRating(feedbackRepository.findAllByProductId(product.getId())))
-                .reqProductPrices(reqProductPrices)
+                .rating(avgRating)
+                .feedbackList(feedbacks)
+                .reqProductPrices(prices)
                 .build();
-        return ApiResponse.success(productDTO);
+
+        return ApiResponse.success(dto);
     }
 
+    @Override
+    public ApiResponse<List<ResProduct>> getMyProducts(User user) {
+        List<Product> products = productRepository.findByOwnerAndActiveTrue(user);
 
-    @Scheduled(fixedRate = 3600000)
-    private void unActiveProduct(){
-        // hozirgi vaqtni olish
-        LocalDateTime localDateTime = LocalDateTime.now();
+        List<ResProduct> list = products.stream()
+                .map(this::toResProduct)
+                .toList();
 
-        // barcha productlarni topib bittasini olish
-        for (Product product : productRepository.findAll()) {
+        return ApiResponse.success(list);
 
-            // o'rtadagi vaqtni aniqlash, necha soat bulganini
-            long hour = Duration.between(product.getCreatedAt(), localDateTime).toHours();
-
-            //user roli tekshirildi
-            if (!product.getOwner().getRole().equals(UserRole.COMPANY)){
-                //agar 48 soatdan katta yoki teng bulsa active = false
-                if (hour >= 48){
-                    product.setActive(false);
-                    productRepository.save(product);
-                }
-            }
-        }
     }
 
+    @Scheduled(fixedRate = 3_600_000) // Har soatda
+    @Transactional
+    public void deactivateOldProducts() {
+        LocalDateTime twoDaysAgo = LocalDateTime.now().minusHours(48);
 
-
-    private List<ResFeedback> convertFeedbackInDTO(List<Feedback> feedbackList){
-        if (feedbackList.isEmpty()){
-            return new ArrayList<>();
-        }
-
-        return feedbackList.stream().map(
-                feedback -> ResFeedback.builder()
-                        .feedback(feedback.getFeedback())
-                        .rating(feedback.getRating())
-                        .userId(feedback.getUser().getId())
-                        .userName(feedback.getUser().getFirstName() + " " + feedback.getUser().getLastName())
-                        .build()
-        ).toList();
+        productRepository.deactivateProductsOlderThanAndNotCompany(twoDaysAgo, UserRole.COMPANY);
     }
 
-
-
-    private double averageRating(List<Feedback> feedbackList){
-        if (feedbackList.isEmpty()){
-            return 0.0;
-        }
-        double sum = 0;
-        for (Feedback feedback : feedbackList) {
-            sum += feedback.getRating();
-        }
-
-        return sum / feedbackList.size();
+    // Helper methods
+    private Category getCategoryById(UUID id) {
+        return categoryRepository.findById(id)
+                .orElseThrow(() -> new DataNotFoundException("Kategoriya topilmadi"));
     }
 
-
-    private List<ReqProductPrice> convertPriceInDTO(List<ProductPrice> productPriceList){
-        return productPriceList.stream().map(
-                productPrice -> ReqProductPrice.builder()
-                        .price(productPrice.getPrice())
-                        .productPriceType(productPrice.getProductPriceType().name())
-                        .build()
-        ).toList();
+    private Product getActiveProductById(UUID id) {
+        return productRepository.findByIdAndActiveTrue(id)
+                .orElseThrow(() -> new DataNotFoundException("Mahsulot topilmadi yoki faol emas"));
     }
 
+    private Product getProductByIdAndOwner(UUID id, UUID ownerId) {
+        return productRepository.findByIdAndOwnerId(id, ownerId)
+                .orElseThrow(() -> new DataNotFoundException("Mahsulot topilmadi yoki sizga tegishli emas"));
+    }
+
+    private Product getActiveProductByIdAndOwner(UUID id, UUID ownerId) {
+        return productRepository.findByIdAndOwnerIdAndActiveTrue(id, ownerId)
+                .orElseThrow(() -> new DataNotFoundException("Mahsulot topilmadi yoki sizga tegishli emas"));
+    }
+
+    private void saveProductPrices(Product product, List<ReqProductPrice> prices) {
+        if (prices == null || prices.isEmpty()) return;
+
+        List<ProductPrice> productPrices = prices.stream()
+                .map(p -> ProductPrice.builder()
+                        .product(product)
+                        .productPriceType(ProductPriceType.valueOf(p.getProductPriceType()))
+                        .price(p.getPrice())
+                        .active(true)
+                        .build())
+                .toList();
+
+        productPriceRepository.saveAll(productPrices);
+    }
+
+    private ResProduct toResProduct(Product p) {
+        Double dailyPrice = productPriceRepository.findPriceByProductIdAndType(p.getId(), ProductPriceType.DAY);
+        double rating = calculateAverageRating(feedbackRepository.findAllByProductId(p.getId()));
+
+        return ResProduct.builder()
+                .id(p.getId())
+                .name(p.getName())
+                .description(p.getDescription())
+                .imgUrls(p.getImgUrls())
+                .lat(p.getLat())
+                .lng(p.getLng())
+                .productType(p.getCategory().getName())
+                .productCondition(p.getProductCondition().name())
+                .price(dailyPrice != null ? dailyPrice : 0.0)
+                .rating(rating)
+                .build();
+    }
+
+    private ResFeedback toResFeedback(Feedback f) {
+        return ResFeedback.builder()
+                .feedback(f.getFeedback())
+                .rating(f.getRating())
+                .userId(f.getUser().getId())
+                .userName(f.getUser().getFirstName() + " " + f.getUser().getLastName())
+                .build();
+    }
+
+    private ReqProductPrice toReqProductPrice(ProductPrice pp) {
+        return ReqProductPrice.builder()
+                .price(pp.getPrice())
+                .productPriceType(pp.getProductPriceType().name())
+                .build();
+    }
+
+    private double calculateAverageRating(List<Feedback> feedbacks) {
+        return feedbacks.isEmpty() ? 0.0 :
+                feedbacks.stream().mapToDouble(Feedback::getRating).average().orElse(0.0);
+    }
 }

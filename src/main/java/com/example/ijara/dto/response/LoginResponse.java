@@ -1,13 +1,18 @@
 package com.example.ijara.dto.response;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
+import com.example.ijara.entity.enums.UserRole;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
-@Getter
-@Setter
-@AllArgsConstructor
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class LoginResponse {
-    private String token;
-    private String role;
+    private String accessToken;
+    private UserRole role;
+    private String firstName;
+    private String lastName;
+    private String username;
 }

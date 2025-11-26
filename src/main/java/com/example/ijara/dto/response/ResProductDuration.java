@@ -11,4 +11,11 @@ import lombok.*;
 public class ResProductDuration {
     private long duration;
     private ProductPriceType productPriceType;
+
+    public static ResProductDuration of(long duration, ProductPriceType type) {
+        ResProductDuration res = new ResProductDuration();
+        res.setDuration(duration);
+        res.setProductPriceType(type);
+        return res;
+    }
 }

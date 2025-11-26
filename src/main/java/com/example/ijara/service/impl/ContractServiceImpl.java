@@ -23,7 +23,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Period;
@@ -33,260 +32,231 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class ContractServiceImpl implements ContractService {
+
     private final ProductRepository productRepository;
     private final ProductPriceRepository productPriceRepository;
     private final ContractRepository contractRepository;
-    private final NotificationServiceImpl notificationServiceImpl;
+    private final NotificationServiceImpl notificationService;
 
     @Override
-    public ApiResponse<String> saveContract(User user, ReqContract reqContract) {
-        Product product = productRepository.findByIdAndActiveTrue(reqContract.getProductId()).orElseThrow(
-                () -> new DataNotFoundException("Product topilmadi")
-        );
+    public ApiResponse<String> saveContract(User lessee, ReqContract req) {
+        Product product = getActiveProduct(req.getProductId());
 
+        double totalPrice = calculatePrice(req.getStartDate(), req.getEndDate(), product.getId());
         Contract contract = Contract.builder()
                 .owner(product.getOwner())
+                .lessee(lessee)
                 .product(product)
-                .price(getPrice(reqContract.getStartDate(), reqContract.getEndDate()))
+                .price(totalPrice)
+                .startDateTime(req.getStartDate())
+                .endDateTime(req.getEndDate())
                 .contractStatus(ContractStatus.PENDING)
-                .startDateTime(reqContract.getStartDate())
-                .endDateTime(reqContract.getEndDate())
-                .lessee(user)
                 .active(true)
                 .build();
+
         contractRepository.save(contract);
 
-        notificationServiceImpl.createNotification(product.getOwner().getId(), ResNotification.builder()
-                        .title("Siz uchun eslatma!")
-                        .content(user.getUsername() + " " + "sizning " +
-                                product.getName() + "nomli mahsulotingizni ijaraga olish uchun so'rov yubordi")
-                .build());
+        notificationService.createNotification(
+                product.getOwner().getId(),
+                ResNotification.builder()
+                        .title("Yangi ijara so‘rovi!")
+                        .content(lessee.getUsername() + " sizning \"" + product.getName() + "\" mahsulotingizni ijaraga olmoqchi")
+                        .build()
+        );
 
-        return ApiResponse.success("Success");
+        return ApiResponse.success("Shartnoma muvaffaqiyatli yaratildi");
     }
 
-
     @Override
-    public ApiResponse<String> updateContact(UUID contactId, User user, ReqContract reqContract) {
-        Contract contract = contractRepository.findByIdAndActiveTrue(contactId).orElseThrow(
-                () -> new DataNotFoundException("Contract not found")
-        );
+    public ApiResponse<String> updateContract(UUID contractId, User user, ReqContract req) {
+        Contract contract = getActiveContract(contractId);
 
         if (!contract.getLessee().getId().equals(user.getId())) {
             return ApiResponse.error("Bu shartnoma sizga tegishli emas");
         }
 
-        Product product = productRepository.findById(reqContract.getProductId()).orElseThrow(
-                () -> new DataNotFoundException("Product topilmadi")
-        );
-
-        if (contract.getContractStatus() == ContractStatus.PENDING) {
-            if (contract.getLessee().equals(user)) {
-                contract.setStartDateTime(reqContract.getStartDate());
-                contract.setEndDateTime(reqContract.getEndDate());
-                contract.setProduct(product);
-                contractRepository.save(contract);
-                return ApiResponse.success("Success");
-            }
+        if (contract.getContractStatus() != ContractStatus.PENDING) {
+            return ApiResponse.error("Faqat kutayotgan shartnomalarni tahrirlash mumkin");
         }
 
-        return ApiResponse.error("Bu shartnoma sizniki emas");
+        Product product = getActiveProduct(req.getProductId());
+        double newPrice = calculatePrice(req.getStartDate(), req.getEndDate(), product.getId());
+
+        contract.setProduct(product);
+        contract.setStartDateTime(req.getStartDate());
+        contract.setEndDateTime(req.getEndDate());
+        contract.setPrice(newPrice);
+        contractRepository.save(contract);
+
+        return ApiResponse.success("Shartnoma muvaffaqiyatli yangilandi");
     }
-
-
 
     @Override
     public ApiResponse<String> deleteContract(User user, UUID contractId) {
-        Contract contract = contractRepository.findByIdAndActiveTrue(contractId).orElseThrow(
-                () -> new DataNotFoundException("Contract topilmadi")
-        );
+        Contract contract = getActiveContract(contractId);
 
-        if (contract.getLessee().getId().equals(user.getId())) {
-            contract.setActive(false);
-            contractRepository.save(contract);
-            return ApiResponse.success("Success");
+        if (!contract.getLessee().getId().equals(user.getId())) {
+            return ApiResponse.error("Bu shartnoma sizga tegishli emas");
         }
 
-        return ApiResponse.error("Bu shartnoma sizniki emas");
+        contract.setActive(false);
+        contractRepository.save(contract);
+        return ApiResponse.success("Shartnoma muvaffaqiyatli o‘chirildi");
     }
 
-
     @Override
-    public ApiResponse<String> updateStatusContract(UUID contractId, boolean status, User user) {
-        Contract contract = contractRepository.findByIdAndActiveTrue(contractId).orElseThrow(
-                () -> new DataNotFoundException("Contract topilmadi")
-        );
+    public ApiResponse<String> updateStatusContract(UUID contractId, boolean approved, User owner) {
+        Contract contract = getActiveContract(contractId);
 
-        if (contract.getOwner().getId().equals(user.getId())) {
-            if (status){
-                contract.setContractStatus(ContractStatus.ACTIVE);
-                Product product = contract.getProduct();
-                product.setCount(product.getCount() - 1);
-                productRepository.save(product);
-            } else {
-                contract.setContractStatus(ContractStatus.CANCELLED);
+        if (!contract.getOwner().getId().equals(owner.getId())) {
+            return ApiResponse.error("Bu shartnoma sizga tegishli emas");
+        }
+
+        if (approved) {
+            if (contract.getProduct().getCount() <= 0) {
+                return ApiResponse.error("Mahsulot mavjud emas");
             }
-            contractRepository.save(contract);
-
-            notificationServiceImpl.createNotification(contract.getLessee().getId(), ResNotification.builder()
-                            .title("Siz uchun eslatma!")
-                            .content(contract.getOwner().getUsername() + " " + "Siz " +
-                                    contract.getProduct().getName() + " nomli mahsulot uchun yuborgan shartnomangiz tasqidlandi")
-                    .build());
-
-            return ApiResponse.success("Success");
+            contract.setContractStatus(ContractStatus.ACTIVE);
+            Product product = contract.getProduct();
+            product.setCount(product.getCount() - 1);
+            productRepository.save(product);
+        } else {
+            contract.setContractStatus(ContractStatus.CANCELLED);
         }
-        return ApiResponse.error("Bu shartnoma siz uchun emas");
+
+        contractRepository.save(contract);
+
+        String message = approved
+                ? "Sizning shartnomangiz tasdiqlandi!"
+                : "Kechirasiz, shartnomangiz rad etildi";
+
+        notificationService.createNotification(
+                contract.getLessee().getId(),
+                ResNotification.builder()
+                        .title("Shartnoma holati o‘zgardi")
+                        .content(message + " Mahsulot: " + contract.getProduct().getName())
+                        .build()
+        );
+
+        return ApiResponse.success("Shartnoma holati yangilandi");
     }
 
     @Override
-    public ApiResponse<ResPageable> getAllContractByUser(User user, String productName,
-                                                         ContractStatus status, int page, int size) {
-        Page<Contract> contracts;
+    public ApiResponse<ResPageable> getAllContractsByUser(User user, String productName, ContractStatus status, int page, int size) {
+        UUID userId = user.getRole() == UserRole.ADMIN ? null : user.getId();
+        String statusName = status != null ? status.name() : null;
 
-        if (user.getRole().equals(UserRole.ADMIN)){
-            contracts = contractRepository.searchContract(null,
-                    productName, status != null ? status.name() : null, PageRequest.of(page, size));
-        } else {
-            contracts = contractRepository.searchContract(user.getId(),
-                    productName, status != null ? status.name() : null, PageRequest.of(page, size));
-        }
+        Page<Contract> contracts = contractRepository.searchContract(
+                userId, productName, statusName, PageRequest.of(page, size)
+        );
 
-        if (contracts.getTotalElements() == 0) {
+        if (contracts.isEmpty()) {
             return ApiResponse.error("Shartnomalar topilmadi");
         }
 
-        List<ResContract> list = contracts.stream().map(this::resContract).toList();
+        List<ResContract> list = contracts.stream()
+                .map(this::toResContract)
+                .toList();
 
-        ResPageable resPageable = ResPageable.builder()
+        ResPageable res = ResPageable.builder()
                 .page(page)
                 .size(size)
                 .totalPage(contracts.getTotalPages())
                 .totalElements(contracts.getTotalElements())
                 .body(list)
                 .build();
-        return ApiResponse.success(resPageable);
+
+        return ApiResponse.success(res);
     }
 
     @Override
     public ApiResponse<ResContract> getContractById(UUID contractId) {
-        Contract contract = contractRepository.findByIdAndActiveTrue(contractId).orElseThrow(
-                () -> new DataNotFoundException("Contract topilmadi")
-        );
-
-        ResContract resContract = ResContract.builder()
-                .contractId(contract.getId())
-                .contractStatus(contract.getContractStatus().name())
-                .productName(contract.getProduct().getName())
-                .productId(contract.getProduct().getId())
-                .lesseeId(contract.getLessee().getId())
-                .lesseeName(contract.getLessee().getUsername())
-                .price(contract.getPrice())
-                .startDate(contract.getStartDateTime())
-                .endDate(contract.getEndDateTime())
-                .duration(getDuration(contract.getStartDateTime(),contract.getEndDateTime()))
-                .build();
-        return ApiResponse.success(resContract);
+        Contract contract = getActiveContract(contractId);
+        return ApiResponse.success(toResContractFull(contract));
     }
 
-    // shartnomani muddati tugaganda avtomatik false qilib notification yuborish uchun
-    @Scheduled(fixedRate = 3600000)
-    public void findFinishedContracts(){
-        List<Contract> finishedContracts = contractRepository.findFinishedContracts(LocalDateTime.now());
-        for (Contract finishedContract : finishedContracts) {
-            //ijaraga olgan odam uchun notification
-            notificationServiceImpl.createNotification(finishedContract.getLessee().getId(), ResNotification.builder()
-                            .title("Siz uchun eslatma!")
-                            .content("Eslatib o'tamiz!!!  Sizning " +
-                                    finishedContract.getProduct().getName() + " nomli mahsulot uchun yaratilgan shartnoma muggati tugadi")
-                    .build());
+    @Scheduled(fixedRate = 3_600_000) // Har soatda
+    public void finishExpiredContracts() {
+        List<Contract> expired = contractRepository.findFinishedContracts(LocalDateTime.now());
 
-            // ijarag bergan odam uchun notification
-            notificationServiceImpl.createNotification(finishedContract.getOwner().getId(), ResNotification.builder()
-                    .title("Siz uchun eslatma!")
-                    .content("Eslatib o'tamiz!!!  Sizning " +
-                            finishedContract.getProduct().getName() + " nomli mahsulot uchun yaratilgan shartnoma muggati tugadi")
-                    .build());
+        for (Contract c : expired) {
+            c.setActive(false);
+            contractRepository.save(c);
 
-            finishedContract.setActive(false);
-            contractRepository.save(finishedContract);
+            String message = "Sizning \"" + c.getProduct().getName() + "\" uchun ijara shartnomasi muddati tugadi";
+
+            notificationService.createNotification(c.getLessee().getId(),
+                    ResNotification.builder().title("Ijara muddati tugadi").content(message).build());
+
+            notificationService.createNotification(c.getOwner().getId(),
+                    ResNotification.builder().title("Ijara muddati tugadi").content(message).build());
         }
     }
 
+    // Helper methods
+    private Product getActiveProduct(UUID id) {
+        return productRepository.findByIdAndActiveTrue(id)
+                .orElseThrow(() -> new DataNotFoundException("Mahsulot topilmadi yoki mavjud emas"));
+    }
 
+    private Contract getActiveContract(UUID id) {
+        return contractRepository.findByIdAndActiveTrue(id)
+                .orElseThrow(() -> new DataNotFoundException("Shartnoma topilmadi"));
+    }
 
-    // contractni tuliq summasini hisoblash
-    private double getPrice(LocalDateTime startDate, LocalDateTime endDate) {
-        long hours = Duration.between(startDate, endDate).toHours();
+    private double calculatePrice(LocalDateTime start, LocalDateTime end, UUID productId) {
+        long hours = Duration.between(start, end).toHours();
+        ProductPriceType type;
+        long amount;
 
         if (hours < 24) {
-            // soatlik narx
-            ProductPrice productPrice = productPriceRepository.findByProductPriceType(ProductPriceType.HOUR)
-                    .orElseThrow(() -> new DataNotFoundException("Hour price not found"));
-            return productPrice.getPrice() * hours;
-
+            type = ProductPriceType.HOUR;
+            amount = hours;
         } else if (hours < 720) {
-            // kunlik narx
-            long days = Duration.between(startDate, endDate).toDays();
-            ProductPrice productPrice = productPriceRepository.findByProductPriceType(ProductPriceType.DAY)
-                    .orElseThrow(() -> new DataNotFoundException("Day price not found"));
-            return productPrice.getPrice() * days;
-
-        } else if (hours < 8760) { // 1 yildan kichik
-            // oylik narx
-            Period period = Period.between(startDate.toLocalDate(), endDate.toLocalDate());
-            int months = period.getMonths() + period.getYears() * 12;
-            ProductPrice productPrice = productPriceRepository.findByProductPriceType(ProductPriceType.MONTH)
-                    .orElseThrow(() -> new DataNotFoundException("Month price not found"));
-            return productPrice.getPrice() * months;
-
+            type = ProductPriceType.DAY;
+            amount = Duration.between(start, end).toDays();
+        } else if (hours < 8760) {
+            type = ProductPriceType.MONTH;
+            Period p = Period.between(start.toLocalDate(), end.toLocalDate());
+            amount = p.getYears() * 12 + p.getMonths();
         } else {
-            // yillik narx
-            Period period = Period.between(startDate.toLocalDate(), endDate.toLocalDate());
-            int years = period.getYears();
-            ProductPrice productPrice = productPriceRepository.findByProductPriceType(ProductPriceType.YEAR)
-                    .orElseThrow(() -> new DataNotFoundException("Year price not found"));
-            return productPrice.getPrice() * years;
+            type = ProductPriceType.YEAR;
+            amount = Period.between(start.toLocalDate(), end.toLocalDate()).getYears();
         }
+
+        ProductPrice price = productPriceRepository.findByProductIdAndProductPriceType(productId, type)
+                .orElseThrow(() -> new DataNotFoundException(type + " narxi topilmadi"));
+
+        return price.getPrice() * amount;
     }
 
+    private ResProductDuration getDuration(LocalDateTime start, LocalDateTime end) {
+        long hours = Duration.between(start, end).toHours();
+        if (hours < 24) return ResProductDuration.of(hours, ProductPriceType.HOUR);
+        if (hours < 720) return ResProductDuration.of(Duration.between(start, end).toDays(), ProductPriceType.DAY);
 
-    private ResContract resContract(Contract contract){
+        Period p = Period.between(start.toLocalDate(), end.toLocalDate());
+        if (hours < 8760) return ResProductDuration.of(p.getYears() * 12 + p.getMonths(), ProductPriceType.MONTH);
+        return ResProductDuration.of(p.getYears(), ProductPriceType.YEAR);
+    }
+
+    private ResContract toResContract(Contract c) {
         return ResContract.builder()
-                .contractId(contract.getId())
-                .contractStatus(contract.getContractStatus().name())
-                .productName(contract.getProduct().getName())
-                .productId(contract.getProduct().getId())
-                .lesseeId(contract.getLessee().getId())
-                .lesseeName(contract.getLessee().getUsername())
-                .price(contract.getPrice())
+                .contractId(c.getId())
+                .contractStatus(c.getContractStatus().name())
+                .productName(c.getProduct().getName())
+                .productId(c.getProduct().getId())
+                .lesseeId(c.getLessee().getId())
+                .lesseeName(c.getLessee().getUsername())
+                .price(c.getPrice())
                 .build();
     }
 
-
-    // contractni vaqtini olish
-    private ResProductDuration getDuration(LocalDateTime startDate, LocalDateTime endDate) {
-        long hours = Duration.between(startDate, endDate).toHours();
-
-        if (hours < 24) {
-            // soatlik duration
-            return ResProductDuration.builder().duration(hours).productPriceType(ProductPriceType.HOUR).build();
-
-        } else if (hours < 720) {
-            // kunlik duration
-            long days = Duration.between(startDate, endDate).toDays();
-            return ResProductDuration.builder().duration(days).productPriceType(ProductPriceType.DAY).build();
-
-        } else if (hours < 8760) { // 1 yildan kichik
-            // oylik duration
-            Period period = Period.between(startDate.toLocalDate(), endDate.toLocalDate());
-            return ResProductDuration.builder().duration(period.getMonths()).productPriceType(ProductPriceType.MONTH).build() ;
-
-        } else {
-            // yillik duration
-            Period period = Period.between(startDate.toLocalDate(), endDate.toLocalDate());
-            return ResProductDuration.builder().duration(period.getYears()).productPriceType(ProductPriceType.YEAR).build() ;
-        }
+    private ResContract toResContractFull(Contract c) {
+        ResContract res = toResContract(c);
+        res.setStartDate(c.getStartDateTime());
+        res.setEndDate(c.getEndDateTime());
+        res.setDuration(getDuration(c.getStartDateTime(), c.getEndDateTime()));
+        return res;
     }
-
 }

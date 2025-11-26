@@ -2,69 +2,91 @@ package com.example.ijara.controller;
 
 import com.example.ijara.dto.ApiResponse;
 import com.example.ijara.dto.IdList;
+import com.example.ijara.dto.NotificationDTO;
 import com.example.ijara.dto.response.ResNotification;
 import com.example.ijara.entity.User;
 import com.example.ijara.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
-@Tag(name = "Notification Controller", description = "Bildirishnomalar bilan ishlovchi endpointlar")
 @RestController
+@RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor
-@RequestMapping("/api/notification")
+@Tag(name = "Bildirishnomalar", description = "Foydalanuvchilarga xabar yuborish va boshqarish")
 public class NotificationController {
+
     private final NotificationService notificationService;
 
-    @PostMapping
-    @Operation(summary = "Admin barcha userlarga notification yuborish")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<ApiResponse<?>> sendNotification(@RequestBody ResNotification resNotification) {
-        return ResponseEntity.ok(notificationService.adminSendNotificationAll(resNotification));
+    @PostMapping("/broadcast")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Barcha foydalanuvchilarga xabar yuborish")
+    public ResponseEntity<ApiResponse<String>> broadcast(
+            @Valid @RequestBody ResNotification request
+    ) {
+        return ResponseEntity.ok(notificationService.adminSendNotificationToAll(request));
     }
 
-
-    @PostMapping("/{studentId}")
-    @Operation(summary = "Admin bitta userga notification yuborish")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<ApiResponse<?>> sendNotificationOneStudent(@PathVariable UUID studentId,
-                                                                     @RequestBody ResNotification resNotification) {
-        return ResponseEntity.ok(notificationService.createNotification(studentId, resNotification));
+    @PostMapping("/to/{userId}")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Bitta foydalanuvchiga shaxsiy xabar yuborish")
+    public ResponseEntity<ApiResponse<String>> sendToUser(
+            @Parameter(description = "Xabar oluvchi foydalanuvchi ID") 
+            @PathVariable UUID userId,
+            @Valid @RequestBody ResNotification request
+    ) {
+        return ResponseEntity.ok(notificationService.createNotification(userId, request));
     }
-
-
 
     @GetMapping("/my")
-    @Operation(summary = "Barcha uziga kelgan notificationlarni kurish")
-    public ResponseEntity<ApiResponse<?>> getMyNotifications(@AuthenticationPrincipal User student) {
-        return ResponseEntity.ok(notificationService.getMyNotifications(student));
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "O‘zimga kelgan barcha bildirishnomalarni ko‘rish")
+    public ResponseEntity<ApiResponse<List<NotificationDTO>>> getMyNotifications(
+            @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(notificationService.getMyNotifications(user));
     }
 
-
-    @PutMapping("/isRead")
-    @Operation(summary = "O'qilmagan notificationlarni uqilgan qiladi")
-    public ResponseEntity<ApiResponse<?>> isRead(@RequestBody IdList idList) {
-        return ResponseEntity.ok(notificationService.readNotification(idList));
+    @GetMapping("/unread-count")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "O‘qilmagan bildirishnomalar soni")
+    public ResponseEntity<ApiResponse<Long>> getUnreadCount(
+            @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(notificationService.getUnreadNotificationCount(user));
     }
 
-
-    @GetMapping("/count")
-    @Operation(summary = "Barcha uziga kelgan uqilmagan notificationlar soni")
-    public ResponseEntity<ApiResponse<?>> getNotificationCount(@AuthenticationPrincipal User student) {
-        return ResponseEntity.ok(notificationService.getUnReadNotificationCount(student));
+    @PatchMapping("/mark-as-read")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Bir nechta bildirishnomani o‘qilgan deb belgilash")
+    public ResponseEntity<ApiResponse<String>> markAsRead(
+            @Valid @RequestBody IdList idList
+    ) {
+        return ResponseEntity.ok(notificationService.markAsRead(idList));
     }
 
+    @DeleteMapping("/{notificationId}")
+    @SecurityRequirement(name = "bearerAuth")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Bildirishnomani o‘chirish (faqat ADMIN)")
+    public ResponseEntity<ApiResponse<String>> deleteNotification(
+            @Parameter(description = "O‘chiriladigan bildirishnoma ID") 
+            @PathVariable UUID notificationId,
 
-    @DeleteMapping("/{id}")
-    @Operation(summary = "Admin notificationni uchirishi uchun")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<ApiResponse<?>> deleteNotification(@PathVariable UUID id) {
-        return ResponseEntity.ok(notificationService.deleteNotification(id));
+            @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(notificationService.deleteNotification(notificationId,user));
     }
 }

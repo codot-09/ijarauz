@@ -3,90 +3,272 @@ package com.example.ijara.service.impl;
 import com.example.ijara.dto.ApiResponse;
 import com.example.ijara.dto.request.AdminLoginRequest;
 import com.example.ijara.dto.request.LoginRequest;
+import com.example.ijara.dto.request.RegisterRequest;
+import com.example.ijara.dto.request.TelegramLoginRequest;
 import com.example.ijara.dto.response.LoginResponse;
 import com.example.ijara.entity.User;
+import com.example.ijara.entity.VerificationCode;
+import com.example.ijara.entity.enums.AuthType;
 import com.example.ijara.entity.enums.UserRole;
 import com.example.ijara.exception.DataNotFoundException;
 import com.example.ijara.exception.UnauthorizedException;
 import com.example.ijara.repository.UserRepository;
+import com.example.ijara.repository.VerificationCodeRepository;
 import com.example.ijara.security.JwtProvider;
 import com.example.ijara.service.AuthService;
-import jakarta.xml.bind.DatatypeConverter;
+import com.example.ijara.service.VerificationCodeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.Map;
+import java.time.LocalDateTime;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+
     private final UserRepository userRepository;
     private final JwtProvider jwtProvider;
-    private final PasswordEncoder encoder;
+    private final PasswordEncoder passwordEncoder;
+    private final VerificationCodeService verificationCodeService;
+    private final VerificationCodeRepository verificationCodeRepository;
 
+    @Value("${telegram.bot.token}")
+    private String botToken;
+
+    // -----------------------------------------
+    //            TELEGRAM LOGIN
+    // -----------------------------------------
     @Override
-    public ApiResponse<LoginResponse> login(LoginRequest request) {
-//        if (!verifyTelegramAuth(request)) {
-//            return ApiResponse.error("Invalid Telegram signature");
-//        }
+    public ApiResponse<LoginResponse> telegramLogin(TelegramLoginRequest request) {
+
+        if (!verifyTelegramAuth(request)) {
+            return ApiResponse.error("Telegram autentifikatsiyasi muvaffaqiyatsiz");
+        }
+
         User user = userRepository.findByTelegramChatId(request.getChatId())
-                .orElseGet(() -> {
-                    User newUser = User.builder()
-                            .telegramChatId(request.getChatId())
-                            .firstName(request.getFirstName())
-                            .lastName(request.getLastName())
-                            .active(true)
-                            .role(UserRole.NORMAL_USER)
-                            .build();
-                    return userRepository.save(newUser);
-                });
-        if (!user.isActive()) {
-            throw new UnauthorizedException("Kirish taqiqlanadi");
+                .orElseGet(() -> createTelegramUser(request));
+
+        if (user.isDeleted()) {
+            return ApiResponse.error("Hisob o‘chirilgan");
         }
-        String token = jwtProvider.generateToken(user.getTelegramChatId());
-        LoginResponse response = new LoginResponse(token, user.getRole().name());
-        return ApiResponse.success(response);
+
+        return ApiResponse.success(buildLoginResponse(user));
+    }
+
+    private User createTelegramUser(TelegramLoginRequest req) {
+        User user = User.builder()
+                .telegramChatId(req.getChatId())
+                .firstName(req.getFirstName())
+                .lastName(req.getLastName())
+                .username(req.getUsername())
+                .role(UserRole.NORMAL_USER)
+                .authType(AuthType.TELEGRAM)
+                .active(true)
+                .build();
+        return userRepository.save(user);
+    }
+
+    // -----------------------------------------
+    //            REGISTER (EMAIL)
+    // -----------------------------------------
+    @Override
+    public ApiResponse<String> register(RegisterRequest req) {
+
+        if (userRepository.existsByEmail(req.getEmail())) {
+            return ApiResponse.error("Email allaqachon ro‘yxatdan o‘tgan");
+        }
+
+        User user = User.builder()
+                .email(req.getEmail())
+                .passwordHash(passwordEncoder.encode(req.getPassword()))
+                .firstName(req.getFirstName())
+                .lastName(req.getLastName())
+                .role(UserRole.NORMAL_USER)
+                .authType(AuthType.EMAIL)
+                .active(false) // Shart: avval tasdiqlansin
+                .build();
+
+        userRepository.save(user);
+
+        verificationCodeService.generateAndSendCode(user);
+
+        return ApiResponse.success("Tasdiqlash kodi emailga yuborildi");
+    }
+
+    // -----------------------------------------
+    //            LOGIN (EMAIL)
+    // -----------------------------------------
+    @Override
+    public ApiResponse<LoginResponse> login(LoginRequest req) {
+
+        User user = userRepository.findByEmailAndActiveTrue(req.getEmail())
+                .orElseThrow(() -> new DataNotFoundException("Foydalanuvchi topilmadi"));
+
+        if (user.isDeleted()) {
+            return ApiResponse.error("Hisob o‘chirilgan");
+        }
+
+        if (!AuthType.EMAIL.equals(user.getAuthType())) {
+            return ApiResponse.error("Bu foydalanuvchi Telegram orqali ro‘yxatdan o‘tgan");
+        }
+
+        if (!passwordEncoder.matches(req.getPassword(), user.getPasswordHash())) {
+            return ApiResponse.error("Parol noto‘g‘ri");
+        }
+
+        return ApiResponse.success(buildLoginResponse(user));
+    }
+
+    // -----------------------------------------
+    //       EMAIL VERIFICATION
+    // -----------------------------------------
+    @Override
+    public ApiResponse<LoginResponse> verifyEmail(Integer code) {
+
+        VerificationCode vc = verificationCodeRepository.findByCode(code)
+                .orElseThrow(() -> new DataNotFoundException("Noto‘g‘ri tasdiqlash kodi"));
+
+        if (vc.getExpiresAt().isBefore(LocalDateTime.now())) {
+            return ApiResponse.error("Tasdiqlash kodi muddati o‘tgan");
+        }
+
+        User user = vc.getUser();
+
+        if (user.isDeleted()) {
+            return ApiResponse.error("Hisob o‘chirilgan");
+        }
+
+        user.setActive(true);
+        userRepository.save(user);
+
+        verificationCodeRepository.delete(vc);
+
+        return ApiResponse.success(buildLoginResponse(user));
     }
 
     @Override
-    public ApiResponse<LoginResponse> adminLogin(AdminLoginRequest request) {
-        User admin = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new DataNotFoundException("Admin topilmadi"));
-        if (!encoder.matches(request.getPassword(), admin.getPasswordHash())){
-            return ApiResponse.error("Ma'lumotlar noto'g'ri");
-        }
-        String token = jwtProvider.generateToken(admin.getTelegramChatId());
-        LoginResponse response = new LoginResponse(token, admin.getRole().name());
-        return ApiResponse.success(response);
+    public ApiResponse<String> resetPassword(String email) {
+        User user = userRepository.findByEmailAndActiveTrue(email)
+                .orElseThrow(() -> new DataNotFoundException("Foydalanuvchi topimadi"));
+
+        user.setActive(false);
+        userRepository.save(user);
+
+        verificationCodeService.generateAndSendCode(user);
+
+        return ApiResponse.success("Emailga tasdiqlash uchun kod yuborildi");
     }
 
-//    private boolean verifyTelegramAuth(LoginRequest request) {
-//        try {
-//            String botToken = "8262839503:AAGeXC5t_TwuvJH5A0ZZuR6hoHzKuV_5CPg";
-//            Map<String, String> data = new TreeMap<>();
-//            data.put("auth_date", request.getAuthDate());
-//            data.put("first_name", request.getFirstName());
-//            if (request.getLastName() != null) data.put("last_name", request.getLastName());
-//            if (request.getUsername() != null) data.put("username", request.getUsername());
-//            data.put("id", request.getChatId());
-//            String dataCheckString = data.entrySet().stream()
-//                    .map(e -> e.getKey() + "=" + e.getValue())
-//                    .collect(Collectors.joining("\n"));
-//            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-//            byte[] secretKey = digest.digest(botToken.getBytes(StandardCharsets.UTF_8));
-//            Mac mac = Mac.getInstance("HmacSHA256");
-//            mac.init(new SecretKeySpec(secretKey, "HmacSHA256"));
-//            byte[] hmac = mac.doFinal(dataCheckString.getBytes(StandardCharsets.UTF_8));
-//            String calculatedHash = DatatypeConverter.printHexBinary(hmac).toLowerCase();
-//            return calculatedHash.equals(request.getHash());
-//        } catch (Exception e) {
-//            return false;
-//        }
-//    }
+    @Override
+    public ApiResponse<String> checkCode(Integer code) {
+        VerificationCode vc = verificationCodeRepository.findByCode(code)
+                .orElseThrow(() -> new DataNotFoundException("Noto'g'ri tasdiqlash kodi"));
+
+        if (vc.getExpiresAt().isBefore(LocalDateTime.now())){
+            return ApiResponse.error("Muddati o'tgan tasdiqlash kodi");
+        }
+
+        User user = vc.getUser();
+
+        user.setActive(true);
+        userRepository.save(user);
+
+        return ApiResponse.success("Kod tasdiqlandi.Parolni o'zgartirish mumkin");
+    }
+
+    @Override
+    public ApiResponse<String> setPassword(String newPassword, String email) {
+        User user = userRepository.findByEmailAndActiveTrue(email)
+                .orElseThrow(() -> new DataNotFoundException("Foydalanuvchi topilmadi"));
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        return ApiResponse.success("Parol o'zgartirildi. Login qilish mumkin");
+    }
+
+    // -----------------------------------------
+    //              ADMIN LOGIN
+    // -----------------------------------------
+    @Override
+    public ApiResponse<LoginResponse> adminLogin(AdminLoginRequest req) {
+
+        User admin = userRepository.findByUsernameAndActiveTrue(req.getUsername())
+                .orElseThrow(() -> new DataNotFoundException("Admin topilmadi"));
+
+        if (!UserRole.ADMIN.equals(admin.getRole())) {
+            throw new UnauthorizedException("Ruxsat yo‘q");
+        }
+
+        if (!passwordEncoder.matches(req.getPassword(), admin.getPasswordHash())) {
+            throw new UnauthorizedException("Parol noto‘g‘ri");
+        }
+
+        return ApiResponse.success(buildLoginResponse(admin));
+    }
+
+    // -----------------------------------------
+    //       TELEGRAM AUTH VERIFICATION
+    // -----------------------------------------
+    private boolean verifyTelegramAuth(TelegramLoginRequest req) {
+        try {
+            TreeMap<String, String> data = new TreeMap<>();
+            data.put("id", req.getChatId());
+            data.put("first_name", req.getFirstName());
+            if (req.getLastName() != null) data.put("last_name", req.getLastName());
+            if (req.getUsername() != null) data.put("username", req.getUsername());
+            data.put("auth_date", req.getAuthDate());
+
+            String dataCheckString = data.entrySet().stream()
+                    .map(e -> e.getKey() + "=" + e.getValue())
+                    .collect(Collectors.joining("\n"));
+
+            // Bot token → SHA256 → secretKey
+            MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+            byte[] secretKey = sha256.digest(botToken.getBytes(StandardCharsets.UTF_8));
+
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secretKey, "HmacSHA256"));
+
+            byte[] hash = mac.doFinal(dataCheckString.getBytes(StandardCharsets.UTF_8));
+            String calculatedHash = toHex(hash);
+
+            return calculatedHash.equalsIgnoreCase(req.getHash());
+
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String toHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) sb.append(String.format("%02x", b));
+        return sb.toString();
+    }
+
+    // -----------------------------------------
+    //            BUILD LOGIN RESPONSE
+    // -----------------------------------------
+    private LoginResponse buildLoginResponse(User user) {
+        String subject = user.getTelegramChatId() != null ?
+                user.getTelegramChatId() :
+                user.getEmail();
+
+        String token = jwtProvider.generateToken(subject);
+
+        return LoginResponse.builder()
+                .accessToken(token)
+                .role(user.getRole())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .username(user.getUsername())
+                .build();
+    }
 }

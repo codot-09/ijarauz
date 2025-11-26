@@ -1,39 +1,46 @@
 package com.example.ijara.repository;
 
 import com.example.ijara.entity.User;
-import com.example.ijara.entity.enums.UserRole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
-    Optional<User> findByTelegramChatId(String chatId);
+
+    Optional<User> findByTelegramChatId(String telegramChatId);
+
+    Optional<User> findByEmailAndActiveTrue(String email);
+
+    boolean existsByEmail(String email);
+
+    Optional<User> findByUsernameAndActiveTrue(String username);
+
     Optional<User> findByUsername(String username);
 
+    Optional<User> findByTelegramChatIdAndActiveTrue(String telegramChatId);
+
+    @Query("SELECT u FROM User u WHERE u.active = true")
+    Page<User> findAllActive(Pageable pageable);
+
     @Query("""
-    SELECT u FROM User u
-    WHERE (LOWER(u.firstName) LIKE LOWER(CONCAT('%', :field, '%'))
-           OR LOWER(u.lastName) LIKE LOWER(CONCAT('%', :field, '%')))
-      AND u.role = :role
-    """)
-    Page<User> search(
-            @Param("field") String field,
+          SELECT u FROM User u
+          WHERE u.active = true
+            AND (
+                  :query IS NULL
+                  OR LOWER(u.firstName) LIKE LOWER(CONCAT('%', :query, '%'))
+                  OR LOWER(u.lastName) LIKE LOWER(CONCAT('%', :query, '%'))
+                  OR LOWER(u.username) LIKE LOWER(CONCAT('%', :query, '%'))
+            )
+            AND (:role IS NULL OR u.role = :role)
+          """)
+    Page<User> searchUsers(
+            @Param("query") String query,
             @Param("role") String role,
             Pageable pageable
     );
 
-    Optional<User> findByIdAndRole(UUID id, UserRole role);
-
-    @Query(value = """
-        select u.* from users u where active = true and role <> 'ROLE_ADMIN'
-    """, nativeQuery = true)
-    List<User> findAllByRoleAndEnabledTrue();
 }

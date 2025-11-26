@@ -14,14 +14,12 @@ import java.util.UUID;
 @NoArgsConstructor
 @Builder
 public class ReqFeedback {
-    @NotBlank
     private String feedback;
 
     @Max(5)
     @Min(1)
     private double rating;
 
-    @NotBlank
     private UUID productId;
 
     @Schema(hidden = true)

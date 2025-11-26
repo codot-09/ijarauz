@@ -9,70 +9,63 @@ import com.example.ijara.repository.CategoryRepository;
 import com.example.ijara.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
+
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
 
-
     @Override
-    public ApiResponse<String> saveCategory(String name){
-        boolean b = categoryRepository.existsByName(name);
-        if(b){
-            return ApiResponse.error("Bu nomli categoriya allaqachon bor");
+    public ApiResponse<String> saveCategory(String name) {
+        if (categoryRepository.existsByName(name)) {
+            return ApiResponse.error("Bu nomli kategoriya allaqachon mavjud");
         }
         Category category = new Category();
         category.setName(name);
         categoryRepository.save(category);
-        return ApiResponse.success("Success");
+        return ApiResponse.success("Muvaffaqiyatli saqlandi");
     }
 
-
     @Override
-    public ApiResponse<String> updateCategory(UUID id,String name){
-        Category category = categoryRepository.findById(id).orElseThrow(
-                () -> new DataNotFoundException("Category not found")
-        );
-
+    public ApiResponse<String> updateCategory(UUID id, String name) {
+        Category category = getCategory(id);
         category.setName(name);
         categoryRepository.save(category);
-        return ApiResponse.success( "Success");
+        return ApiResponse.success("Muvaffaqiyatli yangilandi");
     }
 
-
     @Override
-    public ApiResponse<String> deleteCategory(UUID id){
-        Category category = categoryRepository.findById(id).orElseThrow(
-                () -> new DataNotFoundException("Category not found")
-        );
+    public ApiResponse<String> deleteCategory(UUID id) {
+        Category category = getCategory(id);
         category.setDeleted(true);
         categoryRepository.save(category);
-        return ApiResponse.success( "Success");
+        return ApiResponse.success("Muvaffaqiyatli o‘chirildi");
     }
 
-
     @Override
-    public ApiResponse<List<CategoryDTO>> getAllCategories(){
-        List<Category> all = categoryRepository.findAll();
-        if(all.isEmpty()){
-            return ApiResponse.error("Not found");
-        }
-        List<CategoryDTO> list = all.stream().map(categoryMapper::toDto).toList();
-        return ApiResponse.success( list);
+    public ApiResponse<List<CategoryDTO>> getAllCategories() {
+        List<CategoryDTO> categories = categoryRepository.findAll()
+                .stream()
+                .map(categoryMapper::toDto)
+                .toList();
+
+        return categories.isEmpty()
+                ? ApiResponse.error("Kategoriyalar topilmadi")
+                : ApiResponse.success(categories);
     }
 
-
-
     @Override
-    public ApiResponse<CategoryDTO> getOneCategoryId(UUID id){
-        Category category = categoryRepository.findById(id).orElseThrow(
-                () -> new DataNotFoundException("Category not found")
-        );
+    public ApiResponse<CategoryDTO> getCategoryById(UUID id) {
+        Category category = getCategory(id);
         return ApiResponse.success(categoryMapper.toDto(category));
+    }
+
+    private Category getCategory(UUID id) {
+        return categoryRepository.findById(id)
+                .orElseThrow(() -> new DataNotFoundException("Kategoriya topilmadi"));
     }
 }

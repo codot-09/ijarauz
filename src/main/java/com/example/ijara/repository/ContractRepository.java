@@ -6,32 +6,37 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-@Repository
 public interface ContractRepository extends JpaRepository<Contract, UUID> {
-
-    @Query(value = """
-            select c.* from contract c left join product p on p.id = c.product_id where
-                (:productName IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :productName, '%'))) and
-                (:userId IS NULL OR c.lessee_id = :userId) and
-                (:userId IS NULL OR c.owner_id = :userId) and
-                (:status IS NULL OR c.contract_status = :status) and c.active = true
-                order by c.created_at desc
-    """, nativeQuery = true)
-    Page<Contract> searchContract(@Param("userId") UUID userId,
-                                  @Param("productName") String productName,
-                                  @Param("status") String status, Pageable pageable);
 
     Optional<Contract> findByIdAndActiveTrue(UUID id);
 
-    @Query(value = """
-            select c.* from contract c where c.active = true and c.contract_status = 'ACTIVE' and c.end_date_time <= :date
-        """, nativeQuery = true)
-    List<Contract> findFinishedContracts(@Param("date") LocalDateTime date);
+    @Query("""
+            SELECT c FROM Contract c
+            WHERE c.active = true
+              AND (:userId IS NULL OR c.lessee.id = :userId OR c.owner.id = :userId)
+              AND (:productName IS NULL OR LOWER(c.product.name) LIKE LOWER(CONCAT('%', :productName, '%')))
+              AND (:status IS NULL OR c.contractStatus = :statusEnum)
+            """)
+    Page<Contract> searchContract(
+            @Param("userId") UUID userId,
+            @Param("productName") String productName,
+            @Param("status") String status,
+            Pageable pageable
+    );
+
+    @Query("SELECT c FROM Contract c WHERE c.active = true AND c.endDateTime < :now AND c.contractStatus = 'ACTIVE'")
+    List<Contract> findFinishedContracts(@Param("now") LocalDateTime now);
+
+    @Query("""
+            SELECT c FROM Contract c
+            WHERE c.active = true
+              AND c.contractStatus = 'ACTIVE'
+              AND c.endDateTime < :now
+            """)
+    List<Contract> findActiveAndExpired(@Param("now") LocalDateTime now);
 }

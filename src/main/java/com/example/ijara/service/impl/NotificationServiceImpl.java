@@ -6,105 +6,119 @@ import com.example.ijara.dto.NotificationDTO;
 import com.example.ijara.dto.response.ResNotification;
 import com.example.ijara.entity.Notification;
 import com.example.ijara.entity.User;
+import com.example.ijara.entity.enums.UserRole;
 import com.example.ijara.exception.DataNotFoundException;
 import com.example.ijara.repository.NotificationRepository;
 import com.example.ijara.repository.UserRepository;
 import com.example.ijara.service.NotificationService;
-import lombok.*;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
+
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
 
     @Override
-    public ApiResponse<?> adminSendNotificationAll(ResNotification resNotification) {
-        for (User user : userRepository.findAllByRoleAndEnabledTrue()) {
-            Notification notification = saveNotification(resNotification, user);
-            notificationRepository.save(notification);
+    @Transactional
+    public ApiResponse<String> adminSendNotificationToAll(ResNotification req) {
+        List<User> users = userRepository.findAll()
+                .stream()
+                .filter(user -> user.getRole() != UserRole.ADMIN)
+                .toList();
+
+        if (users.isEmpty()) {
+            return ApiResponse.error("Hech qanday foydalanuvchi topilmadi");
         }
 
-        return ApiResponse.success("Notification successfully send");
+        List<Notification> notifications = users.stream()
+                .map(user -> buildNotification(req, user))
+                .toList();
+
+        notificationRepository.saveAll(notifications);
+        return ApiResponse.success("Barcha foydalanuvchilarga xabar muvaffaqiyatli yuborildi");
     }
 
     @Override
-    public ApiResponse<?> createNotification(UUID userId, ResNotification resNotification) {
-        User user = userRepository.findById(userId).orElseThrow(
-                () -> new DataNotFoundException("User topilmadi")
-        );
+    public ApiResponse<String> createNotification(UUID userId, ResNotification req) {
+        User user = getUserById(userId);
 
-        Notification notification = Notification.builder()
-                .title(resNotification.getTitle())
-                .message(resNotification.getContent())
-                .user(user)
-                .read(false)
-                .build();
+        Notification notification = buildNotification(req, user);
         notificationRepository.save(notification);
-        return ApiResponse.success("Notification created");
+
+        return ApiResponse.success("Xabar muvaffaqiyatli yaratildi");
     }
 
     @Override
-    public ApiResponse<?> getMyNotifications(User user) {
-        List<NotificationDTO> list = notificationRepository.findAllByUserId(user.getId()).stream()
-                .map(this::convertDtoToNotification).toList();
+    public ApiResponse<List<NotificationDTO>> getMyNotifications(User user) {
+        List<NotificationDTO> notifications = notificationRepository.findAllByUserIdOrderByCreatedAtDesc(user.getId())
+                .stream()
+                .map(this::toDto)
+                .toList();
 
-        return ApiResponse.success(list);
+        return notifications.isEmpty()
+                ? ApiResponse.error("Sizga hali hech qanday xabar kelgan emas")
+                : ApiResponse.success(notifications);
     }
 
     @Override
-    public ApiResponse<?> getUnReadNotificationCount(User user) {
-        Integer i = notificationRepository.countAllByUserIdAndReadFalse(user.getId());
-        return ApiResponse.success(i);
+    public ApiResponse<Long> getUnreadNotificationCount(User user) {
+        long count = notificationRepository.countByUserIdAndReadFalse(user.getId());
+        return ApiResponse.success(count);
     }
 
     @Override
-    public ApiResponse<?> readNotification(IdList idList) {
-        if (idList.getIds().isEmpty()){
-            return ApiResponse.error("List bush bulmasin");
+    @Transactional
+    public ApiResponse<String> markAsRead(IdList idList) {
+        if (idList.getIds() == null || idList.getIds().isEmpty()) {
+            return ApiResponse.error("Xabar ID lari ro‘yxati bo‘sh bo‘lmasligi kerak");
         }
 
-        List<Notification> allById = notificationRepository.findAllById(idList.getIds());
-        allById.forEach(notification -> {notification.setRead(true);
-            notificationRepository.save(notification);});
+        int updated = notificationRepository.markAsReadByIds(idList.getIds());
 
-        return ApiResponse.success("Successfully read notifications");
+        return updated > 0
+                ? ApiResponse.success(updated + " ta xabar o‘qilgan deb belgilandi")
+                : ApiResponse.error("O‘qiladigan xabarlar topilmadi");
     }
 
     @Override
-    public ApiResponse<?> deleteNotification(UUID id) {
-        Notification notification = notificationRepository.findById(id).orElseThrow(
-                () -> new DataNotFoundException("Notification topilmadi")
-        );
+    @Transactional
+    public ApiResponse<String> deleteNotification(UUID notificationId, User user) {
+        Notification notification = notificationRepository.findByIdAndUserId(notificationId, user.getId())
+                .orElseThrow(() -> new DataNotFoundException("Xabar topilmadi yoki sizga tegishli emas"));
 
         notificationRepository.delete(notification);
-        return ApiResponse.success("Notification deleted");
+        return ApiResponse.success("Xabar muvaffaqiyatli o‘chirildi");
     }
 
-
-    public NotificationDTO convertDtoToNotification(Notification notification)
-    {
-        return new NotificationDTO(
-                notification.getId(),
-                notification.getTitle(),
-                notification.getMessage(),
-                notification.getUser().getId(),
-                notification.isRead(),
-                notification.getCreatedAt()
-        );
+    // Helper methods
+    private User getUserById(UUID userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new DataNotFoundException("Foydalanuvchi topilmadi"));
     }
 
-
-    private Notification saveNotification(ResNotification resNotification, User user){
+    private Notification buildNotification(ResNotification req, User user) {
         return Notification.builder()
-                .title(resNotification.getTitle())
-                .message(resNotification.getContent())
+                .title(req.getTitle())
+                .message(req.getContent())
                 .user(user)
                 .read(false)
                 .build();
+    }
+
+    private NotificationDTO toDto(Notification n) {
+        return new NotificationDTO(
+                n.getId(),
+                n.getTitle(),
+                n.getMessage(),
+                n.getUser().getId(),
+                n.isRead(),
+                n.getCreatedAt()
+        );
     }
 }

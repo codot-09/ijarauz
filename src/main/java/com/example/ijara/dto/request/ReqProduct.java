@@ -16,24 +16,19 @@ import java.util.UUID;
 @Builder
 public class ReqProduct {
 
-    @NotBlank
     private String name;
 
     private String description;
 
-    @NotEmpty
     private List<String> imgUrls;
 
-    @NotBlank
     private double lat;
 
-    @NotBlank
     private double lng;
 
     private int count;
 
     private UUID categoryId;
 
-    @NotBlank
     private List<ReqProductPrice> reqProductPrices;
 }

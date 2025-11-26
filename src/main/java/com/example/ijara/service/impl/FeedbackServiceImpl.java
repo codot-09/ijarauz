@@ -11,7 +11,6 @@ import com.example.ijara.repository.ProductRepository;
 import com.example.ijara.service.FeedbackService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.UUID;
 
@@ -19,74 +18,74 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class FeedbackServiceImpl implements FeedbackService {
 
-
-    private final ProductRepository productRepository;
     private final FeedbackRepository feedbackRepository;
+    private final ProductRepository productRepository;
 
     @Override
-    public ApiResponse<String> saveFeedback(User user, ReqFeedback reqFeedback) {
-        Product product = productRepository.findById(reqFeedback.getProductId()).orElseThrow(
-                () -> new DataNotFoundException("Product topilmadi")
-        );
+    public ApiResponse<String> saveFeedback(User user, ReqFeedback req) {
+        Product product = getProductById(req.getProductId());
 
         Feedback feedback = Feedback.builder()
-                .feedback(reqFeedback.getFeedback())
-                .rating(reqFeedback.getRating())
                 .user(user)
                 .product(product)
+                .rating(req.getRating())
+                .feedback(req.getFeedback())
                 .build();
+
         feedbackRepository.save(feedback);
-        return ApiResponse.success("Feedback saqlandi");
+        return ApiResponse.success("Izoh muvaffaqiyatli qoldirildi");
     }
 
     @Override
-    public ApiResponse<String> updateFeedback(User user, UUID id, ReqFeedback reqFeedback) {
-        Feedback feedback = feedbackRepository.findById(id).orElseThrow(
-                () -> new DataNotFoundException("Feedback topilmadi")
-        );
+    public ApiResponse<String> updateFeedback(User user, UUID feedbackId, ReqFeedback req) {
+        Feedback feedback = getFeedbackByIdAndUser(feedbackId, user.getId());
 
-        if (!feedback.getUser().equals(user)){
-            return ApiResponse.error("Bu izoh sizniki emas");
-        }
+        Product product = getProductById(req.getProductId());
 
-        Product product = productRepository.findById(id).orElseThrow(
-                () -> new DataNotFoundException("Product topilmadi")
-        );
-
-        feedback.setRating(reqFeedback.getRating());
         feedback.setProduct(product);
-        feedback.setFeedback(reqFeedback.getFeedback());
+        feedback.setRating(req.getRating());
+        feedback.setFeedback(req.getFeedback());
+
         feedbackRepository.save(feedback);
-        return ApiResponse.success("Feedback tahrirlandi");
+        return ApiResponse.success("Izoh muvaffaqiyatli yangilandi");
     }
 
     @Override
-    public ApiResponse<String> deleteFeedback(User user, UUID id) {
-        Feedback feedback = feedbackRepository.findById(id).orElseThrow(
-                () -> new DataNotFoundException("Feedback topilmadi")
-        );
-
-        if (!feedback.getUser().equals(user)){
-            return ApiResponse.error("Bu izoh sizniki emas");
-        }
-
+    public ApiResponse<String> deleteFeedback(User user, UUID feedbackId) {
+        Feedback feedback = getFeedbackByIdAndUser(feedbackId, user.getId());
         feedbackRepository.delete(feedback);
-        return ApiResponse.success("Feedback o'chirildi");
+        return ApiResponse.success("Izoh muvaffaqiyatli o‘chirildi");
     }
 
     @Override
     public ApiResponse<List<ReqFeedback>> getMyFeedback(User user) {
-        List<ReqFeedback> list = feedbackRepository.findAllByUserId(user.getId()).stream().map(this::convertFeedback).toList();
-        return ApiResponse.success(list);
+        List<ReqFeedback> myFeedbacks = feedbackRepository.findAllByUserId(user.getId())
+                .stream()
+                .map(this::toReqFeedback)
+                .toList();
+
+        return myFeedbacks.isEmpty()
+                ? ApiResponse.error("Siz hali hech qanday izoh qoldirmagansiz")
+                : ApiResponse.success(myFeedbacks);
     }
 
+    // Helper methods
+    private Product getProductById(UUID productId) {
+        return productRepository.findById(productId)
+                .orElseThrow(() -> new DataNotFoundException("Mahsulot topilmadi"));
+    }
 
-    private ReqFeedback convertFeedback(Feedback feedback) {
+    private Feedback getFeedbackByIdAndUser(UUID feedbackId, UUID userId) {
+        return feedbackRepository.findByIdAndUserId(feedbackId, userId)
+                .orElseThrow(() -> new DataNotFoundException("Izoh topilmadi yoki sizga tegishli emas"));
+    }
+
+    private ReqFeedback toReqFeedback(Feedback f) {
         return ReqFeedback.builder()
-                .feedback(feedback.getFeedback())
-                .rating(feedback.getRating())
-                .productId(feedback.getProduct().getId())
-                .productName(feedback.getProduct().getName())
+                .productId(f.getProduct().getId())
+                .productName(f.getProduct().getName())
+                .rating(f.getRating())
+                .feedback(f.getFeedback())
                 .build();
     }
 }

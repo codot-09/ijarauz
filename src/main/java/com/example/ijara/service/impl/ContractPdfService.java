@@ -1,134 +1,127 @@
 package com.example.ijara.service.impl;
 
 import com.example.ijara.entity.Contract;
-import com.itextpdf.text.*;
-import com.itextpdf.text.pdf.PdfPCell;
-import com.itextpdf.text.pdf.PdfPTable;
-import com.itextpdf.text.pdf.PdfWriter;
-import com.itextpdf.text.pdf.draw.LineSeparator;
+import com.itextpdf.kernel.font.PdfFont;
+import com.itextpdf.kernel.font.PdfFontFactory;
+import com.itextpdf.kernel.geom.PageSize;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.borders.Border;
+import com.itextpdf.layout.element.*;
+import com.itextpdf.layout.properties.TextAlignment;
+import com.itextpdf.layout.properties.VerticalAlignment;
 import org.springframework.stereotype.Service;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 @Service
 public class ContractPdfService {
 
+    private static final String FONT_PATH = "fonts/DejaVuSans.ttf"; // Agar kerak bo'lsa, o'zbekcha harflar uchun
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+
     public ByteArrayInputStream generateContractPdf(Contract contract) {
-        Document document = new Document(PageSize.A4, 50, 50, 50, 50);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-        try {
-            PdfWriter.getInstance(document, out);
-            document.open();
+        try (PdfWriter writer = new PdfWriter(out);
+             PdfDocument pdf = new PdfDocument(writer);
+             Document document = new Document(pdf, PageSize.A4)) {
 
-            // Kompaniya logotipi (agar bo‘lsa)
-            // Image logo = Image.getInstance("src/main/resources/logo.png");
-            // logo.scaleAbsolute(80, 80);
-            // logo.setAlignment(Element.ALIGN_RIGHT);
-            // document.add(logo);
+            document.setMargins(50, 50, 50, 50);
 
-            // Title
-//            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 20);
-//            Paragraph title = new Paragraph("IJARA SHARTNOMASI", titleFont);
-//            title.setAlignment(Element.ALIGN_CENTER);
-//            document.add(title);
-//
-//            document.add(new Paragraph(" "));
-//            document.add(new Paragraph(" "));
-//
-//            // Bandlar ko‘rinishida
-//            Font bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
-//            Font normal = FontFactory.getFont(FontFactory.HELVETICA, 12);
-//
-//            document.add(new Paragraph("1. Tomonlar", bold));
-//            document.add(new Paragraph("   Egasi: " + contract.getOwner().getFirstName() + " " + contract.getOwner().getLastName(), normal));
-//            document.add(new Paragraph("   Ijara oluvchi: " + contract.getLessee().getFirstName() + " " + contract.getLessee().getLastName(), normal));
-//            document.add(new Paragraph(" "));
-//
-//            document.add(new Paragraph("2. Shartnoma predmeti", bold));
-//            document.add(new Paragraph("   Mahsulot: " + contract.getProduct().getName(), normal));
-//            document.add(new Paragraph("   Holati: " + contract.getContractStatus(), normal));
-//            document.add(new Paragraph(" "));
-//
-//            document.add(new Paragraph("3. Muddat", bold));
-//            document.add(new Paragraph("   Boshlanish: " + contract.getStartDateTime(), normal));
-//            document.add(new Paragraph("   Tugash: " + contract.getEndDateTime(), normal));
-//            document.add(new Paragraph(" "));
-//
-//            document.add(new Paragraph("4. To‘lov", bold));
-//            document.add(new Paragraph("   Narxi: " + contract.getPrice() + " so‘m", normal));
-//            document.add(new Paragraph(" "));
-//
-//            document.add(new Paragraph("5. Qo‘shimcha shartlar", bold));
-//            document.add(new Paragraph("   Shartnoma amalda bo‘lgan davrda tomonlar belgilangan tartibga rioya qilishlari shart.", normal));
-//            document.add(new Paragraph(" "));
-//
-//            document.add(new Paragraph(" "));
-//
-//            // Imzo joylari
-//            PdfPTable table = new PdfPTable(2);
-//            table.setWidthPercentage(100);
-//            table.setSpacingBefore(50);
-//
-//            PdfPCell ownerCell = new PdfPCell(new Phrase("Egasi:\n\n\n\n_____________________", normal));
-//            ownerCell.setBorder(Rectangle.NO_BORDER);
-//
-//            PdfPCell lesseeCell = new PdfPCell(new Phrase("Ijara oluvchi:\n\n\n\n_____________________", normal));
-//            lesseeCell.setBorder(Rectangle.NO_BORDER);
-//
-//            table.addCell(ownerCell);
-//            table.addCell(lesseeCell);
-//
-//            document.add(table);
+            PdfFont bold = PdfFontFactory.createFont("Helvetica-Bold");
+            PdfFont regular = PdfFontFactory.createFont("Helvetica");
+            PdfFont italic = PdfFontFactory.createFont("Helvetica-Oblique");
 
-            Paragraph header = new Paragraph("IJARA SHARTNOMASI",
-                    FontFactory.getFont(FontFactory.HELVETICA_BOLD, 20));
-            header.setAlignment(Element.ALIGN_CENTER);
-            document.add(header);
+            // Sarlavha
+            document.add(new Paragraph("IJARA SHARTNOMASI")
+                    .setFont(bold)
+                    .setFontSize(20)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(10));
 
-            LineSeparator line = new LineSeparator();
-            document.add(line);
+            document.add(new Paragraph("____________________________________________________________")
+                    .setFontSize(12)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(20));
 
-            document.add(new Paragraph("\nTuzilgan joyi: Toshkent"));
-            document.add(new Paragraph("Sana: " + LocalDate.now()));
-            document.add(new Paragraph("\n"));
+            // Sana va joy
+            document.add(new Paragraph("Tuzilgan joyi: Toshkent shahri")
+                    .setFont(regular)
+                    .setFontSize(12));
+            document.add(new Paragraph("Sana: " + LocalDate.now().format(DATE_FORMAT))
+                    .setFont(regular)
+                    .setFontSize(12)
+                    .setMarginBottom(20));
 
-// Tomonlar jadvali
-            PdfPTable parties = new PdfPTable(2);
-            parties.setWidthPercentage(100);
-            parties.addCell(new Phrase("Egasi: " + contract.getOwner().getFirstName()));
-            parties.addCell(new Phrase("Ijara oluvchi: " + contract.getLessee().getFirstName()));
-            document.add(parties);
+            // Tomonlar
+            Table partiesTable = new Table(2).setWidth(100);
+            partiesTable.addCell(createCell("Egasi:", bold));
+            partiesTable.addCell(createCell(contract.getOwner().getFirstName() + " " + contract.getOwner().getLastName(), regular));
+            partiesTable.addCell(createCell("Ijara oluvchi:", bold));
+            partiesTable.addCell(createCell(contract.getLessee().getFirstName() + " " + contract.getLessee().getLastName(), regular));
+            document.add(partiesTable.setMarginBottom(20));
 
-// Mahsulot va muddat jadvali
-            PdfPTable details = new PdfPTable(2);
-            details.setWidthPercentage(100);
-            details.addCell("Mahsulot: " + contract.getProduct().getName());
-            details.addCell("Holati: " + contract.getContractStatus());
-            details.addCell("Boshlanish: " + contract.getStartDateTime());
-            details.addCell("Tugash: " + contract.getEndDateTime());
-            details.addCell("Narxi: " + contract.getPrice() + " so‘m");
-            document.add(details);
+            // Shartnoma tafsilotlari
+            Table detailsTable = new Table(2).setWidth(100);
+            detailsTable.setFontSize(11);
+            detailsTable.addCell(createCell("Mahsulot:", bold));
+            detailsTable.addCell(createCell(contract.getProduct().getName(), regular));
+            detailsTable.addCell(createCell("Holati:", bold));
+            detailsTable.addCell(createCell(String.valueOf(contract.getContractStatus()), regular));
+            detailsTable.addCell(createCell("Boshlanish sanasi:", bold));
+            detailsTable.addCell(createCell(contract.getStartDateTime().format(DATE_FORMAT), regular));
+            detailsTable.addCell(createCell("Tugash sanasi:", bold));
+            detailsTable.addCell(createCell(contract.getEndDateTime().format(DATE_FORMAT), regular));
+            detailsTable.addCell(createCell("Ijara narxi:", bold));
+            detailsTable.addCell(createCell(contract.getPrice() + " so‘m", regular));
+            document.add(detailsTable.setMarginBottom(25));
 
-            document.add(new Paragraph("\nShartnoma amalda bo‘lgan davrda tomonlar belgilangan tartibga rioya qilishlari shart.\n\n"));
+            // Qo'shimcha shartlar
+            document.add(new Paragraph("Shartnoma amalda bo‘lgan davrda tomonlar belgilangan tartib-qoidalarga rioya qilishlari shart.")
+                    .setFont(regular)
+                    .setFontSize(11)
+                    .setMarginBottom(40));
 
-// Imzo joylari
-            PdfPTable signatures = new PdfPTable(2);
-            signatures.setWidthPercentage(100);
-            signatures.addCell("Egasi:\n\n______________\n(F.I.O)");
-            signatures.addCell("Ijara oluvchi:\n\n______________\n(F.I.O)");
-            document.add(signatures);
+            // Imzo joylari
+            Table signatureTable = new Table(2).setWidth(100);
+            signatureTable.setMarginTop(30);
+            signatureTable.addCell(createSignatureCell("Egasi:\n\n\n________________________\n(F.I.O va imzo)"));
+            signatureTable.addCell(createSignatureCell("Ijara oluvchi:\n\n\n________________________\n(F.I.O va imzo)"));
+            document.add(signatureTable);
 
-            document.add(new Paragraph("\n\nShartnoma ikki nusxada tuzildi, ikkalasi ham teng huquqli.",
-                    FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 10)));
-            document.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+            // Izoh
+            document.add(new Paragraph("\nShartnoma ikki nusxada tuzildi va ikkala nusxa ham teng huquqiy kuchga ega.")
+                    .setFont(italic)
+                    .setFontSize(10)
+                    .setTextAlignment(TextAlignment.CENTER));
+
+        } catch (IOException e) {
+            throw new RuntimeException("PDF yaratishda xatolik yuz berdi: " + e.getMessage(), e);
         }
 
         return new ByteArrayInputStream(out.toByteArray());
     }
 
+    private Cell createCell(String text, PdfFont font) {
+        return new Cell()
+                .add(new Paragraph(text).setFont(font).setFontSize(11))
+                .setBorder(Border.NO_BORDER)
+                .setPadding(5);
+    }
+
+    private Cell createSignatureCell(String text) throws IOException {
+        return new Cell()
+                .add(new Paragraph(text)
+                        .setFont(PdfFontFactory.createFont("Helvetica"))
+                        .setFontSize(11)
+                        .setHeight(80)
+                        .setVerticalAlignment(VerticalAlignment.BOTTOM))
+                .setBorder(Border.NO_BORDER)
+                .setTextAlignment(TextAlignment.CENTER);
+    }
 }

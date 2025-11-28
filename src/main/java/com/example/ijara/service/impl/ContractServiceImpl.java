@@ -18,6 +18,7 @@ import com.example.ijara.repository.ContractRepository;
 import com.example.ijara.repository.ProductPriceRepository;
 import com.example.ijara.repository.ProductRepository;
 import com.example.ijara.service.ContractService;
+import com.example.ijara.specification.ContractSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -144,10 +145,10 @@ public class ContractServiceImpl implements ContractService {
     @Override
     public ApiResponse<ResPageable> getAllContractsByUser(User user, String productName, ContractStatus status, int page, int size) {
         UUID userId = user.getRole() == UserRole.ADMIN ? null : user.getId();
-        String statusName = status != null ? status.name() : null;
 
-        Page<Contract> contracts = contractRepository.searchContract(
-                userId, productName, statusName, PageRequest.of(page, size)
+        Page<Contract> contracts = contractRepository.findAll(
+                ContractSpecification.filter(userId, productName, status),
+                PageRequest.of(page, size)
         );
 
         if (contracts.isEmpty()) {
@@ -175,9 +176,11 @@ public class ContractServiceImpl implements ContractService {
         return ApiResponse.success(toResContractFull(contract));
     }
 
-    @Scheduled(fixedRate = 3_600_000) // Har soatda
+    @Scheduled(fixedRate = 3_600_000)
     public void finishExpiredContracts() {
-        List<Contract> expired = contractRepository.findFinishedContracts(LocalDateTime.now());
+        List<Contract> expired = contractRepository.findAll(
+                ContractSpecification.finishedContracts(LocalDateTime.now())
+        );
 
         for (Contract c : expired) {
             c.setActive(false);

@@ -17,6 +17,7 @@ import com.example.ijara.repository.FeedbackRepository;
 import com.example.ijara.repository.ProductPriceRepository;
 import com.example.ijara.repository.ProductRepository;
 import com.example.ijara.service.ProductService;
+import com.example.ijara.specification.ProductSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -96,7 +97,10 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ApiResponse<ResPageable> getAllProducts(String name, UUID categoryId, int page, int size) {
-        Page<Product> products = productRepository.searchProduct(name, categoryId, true, PageRequest.of(page, size));
+        Page<Product> products = productRepository.findAll(
+                ProductSpecification.filter(name, categoryId),
+                PageRequest.of(page, size)
+        );
 
         if (products.isEmpty()) {
             return ApiResponse.error("Mahsulotlar topilmadi");

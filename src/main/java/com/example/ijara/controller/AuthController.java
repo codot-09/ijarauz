@@ -1,7 +1,6 @@
 package com.example.ijara.controller;
 
 import com.example.ijara.dto.ApiResponse;
-import com.example.ijara.dto.request.AdminLoginRequest;
 import com.example.ijara.dto.request.LoginRequest;
 import com.example.ijara.dto.request.RegisterRequest;
 import com.example.ijara.dto.request.TelegramLoginRequest;
@@ -11,7 +10,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.Request;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -67,17 +65,6 @@ public class AuthController {
         @RequestParam Integer code
     ){
         return ResponseEntity.ok(authService.verifyEmail(code));
-    }
-
-    @PostMapping("/admin")
-    @Operation(
-        summary = "Admin panelga kirish",
-        description = "Faqat ADMIN roli bo‘lgan foydalanuvchilar uchun. Username + parol orqali kiriladi."
-    )
-    public ResponseEntity<ApiResponse<LoginResponse>> adminLogin(
-            @Valid @RequestBody AdminLoginRequest request
-    ) {
-        return ResponseEntity.ok(authService.adminLogin(request));
     }
 
     @PatchMapping("/reset-password")

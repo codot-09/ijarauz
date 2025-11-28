@@ -1,6 +1,7 @@
 package com.example.ijara.component;
 
 import com.example.ijara.entity.User;
+import com.example.ijara.entity.enums.AuthType;
 import com.example.ijara.entity.enums.UserRole;
 import com.example.ijara.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,9 @@ public class DataLoader implements CommandLineRunner {
                     .firstName("Admin")
                     .lastName("Admin")
                     .role(UserRole.ADMIN)
+                    .authType(AuthType.EMAIL)
                     .active(true)
+                    .email("admin@gmail.com")
                     .username("admin")
                     .passwordHash(encoder.encode("admin123"))
                     .telegramChatId("1234567")

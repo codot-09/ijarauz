@@ -1,7 +1,6 @@
 package com.example.ijara.service.impl;
 
 import com.example.ijara.dto.ApiResponse;
-import com.example.ijara.dto.request.AdminLoginRequest;
 import com.example.ijara.dto.request.LoginRequest;
 import com.example.ijara.dto.request.RegisterRequest;
 import com.example.ijara.dto.request.TelegramLoginRequest;
@@ -192,26 +191,6 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         return ApiResponse.success("Parol o'zgartirildi. Login qilish mumkin");
-    }
-
-    // -----------------------------------------
-    //              ADMIN LOGIN
-    // -----------------------------------------
-    @Override
-    public ApiResponse<LoginResponse> adminLogin(AdminLoginRequest req) {
-
-        User admin = userRepository.findByUsernameAndActiveTrue(req.getUsername())
-                .orElseThrow(() -> new DataNotFoundException("Admin topilmadi"));
-
-        if (!UserRole.ADMIN.equals(admin.getRole())) {
-            throw new UnauthorizedException("Ruxsat yo‘q");
-        }
-
-        if (!passwordEncoder.matches(req.getPassword(), admin.getPasswordHash())) {
-            throw new UnauthorizedException("Parol noto‘g‘ri");
-        }
-
-        return ApiResponse.success(buildLoginResponse(admin));
     }
 
     // -----------------------------------------

@@ -31,13 +31,6 @@ public class SwaggerConfig {
                         .license(new License()
                                 .name("Apache 2.0")
                                 .url("https://springdoc.org")))
-                .servers(List.of(
-                        new Server().url("http://localhost:8081").description("Local server"),
-                        new Server().url("http://176.57.150.199:8081").description("Production server")
-                ))
-                .externalDocs(new ExternalDocumentation()
-                        .description("Full Documentation")
-                        .url("https://your-docs-link.com"))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new io.swagger.v3.oas.models.Components()
                         .addSecuritySchemes(SECURITY_SCHEME_NAME,

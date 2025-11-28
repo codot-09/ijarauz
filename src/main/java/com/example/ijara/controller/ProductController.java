@@ -3,6 +3,7 @@ package com.example.ijara.controller;
 import com.example.ijara.dto.ApiResponse;
 import com.example.ijara.dto.ProductDTO;
 import com.example.ijara.dto.request.ReqProduct;
+import com.example.ijara.dto.response.ProductMapView;
 import com.example.ijara.dto.response.ResPageable;
 import com.example.ijara.dto.response.ResProduct;
 import com.example.ijara.entity.User;
@@ -97,5 +98,26 @@ public class ProductController {
     @Operation(summary = "O'z mahsulotlarini ko'rish")
     public ResponseEntity<ApiResponse<List<ResProduct>>> getOwnProducts(@AuthenticationPrincipal User user){
         return ResponseEntity.ok(productService.getMyProducts(user));
+    }
+
+    @GetMapping("/nearby")
+    @Operation(summary = "O'ziga yaqin mahsulotlarni ko'rish")
+    public ResponseEntity<ApiResponse<List<ProductMapView>>> getNearbyProducts(
+            @Parameter(description = "Foydalanuvchi latitudi")
+            @RequestParam double lat,
+
+            @Parameter(description = "Foydalanuvchi longitudi")
+            @RequestParam double lng
+    ){
+        return ResponseEntity.ok(productService.getNearbyProducts(lat, lng));
+    }
+
+    @GetMapping("/top-rated")
+    @Operation(summary = "Top reytingli mahsulotlarni olish")
+    public ResponseEntity<ApiResponse<ResPageable>> getTopRated(
+            @RequestParam int page,
+            @RequestParam int size
+    ){
+        return ResponseEntity.ok(productService.getTopRatedProducts(page, size));
     }
 }

@@ -3,6 +3,7 @@ package com.example.ijara.service;
 import com.example.ijara.dto.ApiResponse;
 import com.example.ijara.dto.ProductDTO;
 import com.example.ijara.dto.request.ReqProduct;
+import com.example.ijara.dto.response.ProductMapView;
 import com.example.ijara.dto.response.ResPageable;
 import com.example.ijara.dto.response.ResProduct;
 import com.example.ijara.entity.User;
@@ -75,4 +76,22 @@ public interface ProductService {
      * @return Mahsulotlar isti
      */
     ApiResponse<List<ResProduct>> getMyProducts(User user);
+
+    /**
+     *
+     * Eng baland reytingli mahsulotlarni olish
+     *
+     * @return mahsulotlar pagesi
+     */
+    ApiResponse<ResPageable> getTopRatedProducts(int page,int size);
+
+    /**
+     *
+     * O'ziga yaqin mahsulotlarni ko'rish
+     *
+     * @param lat foydalanuvchi joylashuvi 1
+     * @param lng foydalanuvchi joylashuvi 2
+     * @return Mahsulotlar listi
+     */
+    ApiResponse<List<ProductMapView>> getNearbyProducts(double lat,double lng);
 }

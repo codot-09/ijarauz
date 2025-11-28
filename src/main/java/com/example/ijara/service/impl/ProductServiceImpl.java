@@ -4,6 +4,7 @@ import com.example.ijara.dto.ApiResponse;
 import com.example.ijara.dto.ProductDTO;
 import com.example.ijara.dto.request.ReqProduct;
 import com.example.ijara.dto.request.ReqProductPrice;
+import com.example.ijara.dto.response.ProductMapView;
 import com.example.ijara.dto.response.ResFeedback;
 import com.example.ijara.dto.response.ResPageable;
 import com.example.ijara.dto.response.ResProduct;
@@ -25,6 +26,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -97,7 +99,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ApiResponse<ResPageable> getAllProducts(String name, UUID categoryId, int page, int size) {
-        Page<Product> products = productRepository.findAll(
+        Page<Product> products = productRepository.findAllByActiveTrue(
                 ProductSpecification.filter(name, categoryId),
                 PageRequest.of(page, size)
         );
@@ -158,7 +160,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ApiResponse<List<ResProduct>> getMyProducts(User user) {
-        List<Product> products = productRepository.findByOwnerAndActiveTrue(user);
+        List<Product> products = productRepository.findByOwner(user);
 
         List<ResProduct> list = products.stream()
                 .map(this::toResProduct)
@@ -168,7 +170,38 @@ public class ProductServiceImpl implements ProductService {
 
     }
 
-    @Scheduled(fixedRate = 3_600_000) // Har soatda
+    @Override
+    public ApiResponse<ResPageable> getTopRatedProducts(int page,int size) {
+        Page<Product> products = productRepository.findAll(PageRequest.of(page,size));
+
+        List<ResProduct> rp = products.stream()
+                .map(this::toResProduct)
+                .sorted(Comparator.comparing(ResProduct::getRating).reversed()) // rating DESC
+                .toList();
+
+        ResPageable response = ResPageable.builder()
+                .page(page)
+                .size(size)
+                .totalElements(products.getTotalElements())
+                .totalPage(products.getTotalPages())
+                .body(rp)
+                .build();
+
+        return ApiResponse.success(response);
+    }
+
+    @Override
+    public ApiResponse<List<ProductMapView>> getNearbyProducts(double lat, double lng) {
+        List<Product> products = productRepository.findNearbyProducts(lat,lng,10,10);
+
+        List<ProductMapView> response = products.stream()
+                .map(this::toView)
+                .toList();
+
+        return ApiResponse.success(response);
+    }
+
+    @Scheduled(fixedRate = 3_600_000)
     @Transactional
     public void deactivateOldProducts() {
         LocalDateTime twoDaysAgo = LocalDateTime.now().minusHours(48);
@@ -237,6 +270,19 @@ public class ProductServiceImpl implements ProductService {
                 .userId(f.getUser().getId())
                 .userName(f.getUser().getFirstName() + " " + f.getUser().getLastName())
                 .build();
+    }
+
+    private ProductMapView toView(Product product){
+        List<Feedback> f = feedbackRepository.findAllByProductId(product.getId());
+
+        return new ProductMapView(
+                product.getId(),
+                product.getLat(),
+                product.getLng(),
+                product.getImgUrls().getFirst(),
+                product.getName(),
+                calculateAverageRating(f)
+        );
     }
 
     private ReqProductPrice toReqProductPrice(ProductPrice pp) {

@@ -19,11 +19,13 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
 
     Optional<Product> findByIdAndActiveTrue(UUID id);
 
+    Page<Product> findAllByActiveTrue(org.springframework.data.jpa.domain.Specification<Product> spec,Pageable pageable);
+
     Optional<Product> findByIdAndOwnerId(UUID id, UUID ownerId);
 
     Optional<Product> findByIdAndOwnerIdAndActiveTrue(UUID id, UUID ownerId);
 
-    List<Product> findByOwnerAndActiveTrue(User user);
+    List<Product> findByOwner(User user);
 
     @Modifying
     @Query("UPDATE Product p SET p.active = false " +
@@ -33,4 +35,24 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
             @Param("date") LocalDateTime date,
             @Param("companyRole") UserRole companyRole
     );
+
+    @Query(value = """
+    SELECT *
+    FROM Product p
+    WHERE (6371 * acos(
+        cos(radians(:lat)) 
+        * cos(radians(p.lat)) 
+        * cos(radians(p.lng) - radians(:lng)) 
+        + sin(radians(:lat)) 
+        * sin(radians(p.lat))
+    )) < :radiusKm
+    LIMIT :limit
+""", nativeQuery = true)
+    List<Product> findNearbyProducts(
+            @Param("lat") double lat,
+            @Param("lng") double lng,
+            @Param("radiusKm") double radiusKm,
+            @Param("limit") int limit
+    );
+
 }

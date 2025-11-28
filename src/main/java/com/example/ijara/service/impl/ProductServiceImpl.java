@@ -272,14 +272,16 @@ public class ProductServiceImpl implements ProductService {
                 .build();
     }
 
-    private ProductMapView toView(Product product){
+    private ProductMapView toView(Product product) {
         List<Feedback> f = feedbackRepository.findAllByProductId(product.getId());
+        List<String> imgUrls = product.getImgUrls();
+        String firstImg = (imgUrls != null && !imgUrls.isEmpty()) ? imgUrls.get(0) : null;
 
         return new ProductMapView(
                 product.getId(),
                 product.getLat(),
                 product.getLng(),
-                product.getImgUrls().getFirst(),
+                firstImg,
                 product.getName(),
                 calculateAverageRating(f)
         );

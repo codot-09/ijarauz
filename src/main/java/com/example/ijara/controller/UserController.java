@@ -100,14 +100,17 @@ public class UserController {
 
     @PatchMapping("/{userId}/role")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Foydalanuvchi rolini o‘zgartirish (faqat ADMIN)")
+    @Operation(summary = "Foydalanuvchi rolini o‘zgartirish")
     public ResponseEntity<ApiResponse<String>> changeRole(
-            @Parameter(description = "Rol o‘zgartiriladigan foydalanuvchi ID") 
-            @PathVariable UUID userId,
+            @Parameter(description = "Rol o‘zgartiriladigan foydalanuvchi")
+            @AuthenticationPrincipal User user,
 
             @Parameter(description = "Yangi rol") 
-            @RequestParam UserRole role
+            @RequestParam UserRole role,
+
+            @Parameter(description = "Maqsaddagi user idsi")
+            @PathVariable UUID userId
     ) {
-        return ResponseEntity.ok(userService.changeRole(userId, role));
+        return ResponseEntity.ok(userService.changeRole(user,userId, role));
     }
 }

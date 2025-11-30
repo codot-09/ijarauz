@@ -19,13 +19,15 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
 
     Optional<Product> findByIdAndActiveTrue(UUID id);
 
-    Page<Product> findAllByActiveTrue(org.springframework.data.jpa.domain.Specification<Product> spec,Pageable pageable);
-
     Optional<Product> findByIdAndOwnerId(UUID id, UUID ownerId);
 
     Optional<Product> findByIdAndOwnerIdAndActiveTrue(UUID id, UUID ownerId);
 
     List<Product> findByOwner(User user);
+
+    List<Product> findByNameContainingIgnoreCase(String name);
+
+    List<Product> findByCategoryId(UUID categoryId);
 
     @Modifying
     @Query("UPDATE Product p SET p.active = false " +

@@ -24,7 +24,7 @@ public interface UserService {
 
     ApiResponse<String> unblockUser(UUID userId);
 
-    ApiResponse<String> changeRole(UUID userId, UserRole newRole);
+    ApiResponse<String> changeRole(User user,UUID targetId, UserRole newRole);
 
     User getCurrentUser();
 }

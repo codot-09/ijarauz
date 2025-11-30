@@ -31,6 +31,12 @@ public class SwaggerConfig {
                         .license(new License()
                                 .name("Apache 2.0")
                                 .url("https://springdoc.org")))
+                .addServersItem(new Server()
+                        .url("https://api.ijara.me")
+                        .description("Production server"))
+                .addServersItem(new Server()
+                        .url("http://localhost:8081")
+                        .description("Local server"))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new io.swagger.v3.oas.models.Components()
                         .addSecuritySchemes(SECURITY_SCHEME_NAME,

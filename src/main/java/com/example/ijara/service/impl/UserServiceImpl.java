@@ -90,12 +90,16 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public ApiResponse<String> changeRole(UUID userId, UserRole newRole) {
-        User current = getCurrentUser();
-        if (!current.getRole().equals(UserRole.ADMIN)) throw new ForbiddenException();
+    public ApiResponse<String> changeRole(User user,UUID targetId, UserRole newRole) {
+        if (!user.getRole().equals(UserRole.ADMIN)){
+            throw new ForbiddenException();
+        }
 
-        User target = getUser(userId);
+        User target = userRepository.findById(targetId)
+                        .orElseThrow(() -> new DataNotFoundException("Foydalanuvchi topilmadi"));
+
         target.setRole(newRole);
+
         userRepository.save(target);
         return ApiResponse.success("Rol o‘zgartirildi: " + newRole);
     }

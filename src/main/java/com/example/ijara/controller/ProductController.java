@@ -115,8 +115,8 @@ public class ProductController {
     @GetMapping("/top-rated")
     @Operation(summary = "Top reytingli mahsulotlarni olish")
     public ResponseEntity<ApiResponse<ResPageable>> getTopRated(
-            @RequestParam int page,
-            @RequestParam int size
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ){
         return ResponseEntity.ok(productService.getTopRatedProducts(page, size));
     }

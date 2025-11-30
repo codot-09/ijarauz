@@ -18,7 +18,6 @@ import com.example.ijara.repository.FeedbackRepository;
 import com.example.ijara.repository.ProductPriceRepository;
 import com.example.ijara.repository.ProductRepository;
 import com.example.ijara.service.ProductService;
-import com.example.ijara.specification.ProductSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,6 +25,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -99,24 +99,37 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ApiResponse<ResPageable> getAllProducts(String name, UUID categoryId, int page, int size) {
-        Page<Product> products = productRepository.findAllByActiveTrue(
-                ProductSpecification.filter(name, categoryId),
-                PageRequest.of(page, size)
-        );
+        List<Product> filtered = null;
 
-        if (products.isEmpty()) {
-            return ApiResponse.error("Mahsulotlar topilmadi");
+        if (name != null && !name.isBlank()) {
+            List<Product> byName = productRepository.findByNameContainingIgnoreCase(name);
+            filtered = initOrIntersect(filtered, byName);
         }
 
-        List<ResProduct> list = products.stream()
+        if (categoryId != null) {
+            List<Product> byCategory = productRepository.findByCategoryId(categoryId);
+            filtered = initOrIntersect(filtered, byCategory);
+        }
+
+        if (filtered == null) {
+            filtered = productRepository.findAll();
+        }
+
+        int totalElements = filtered.size();
+        int fromIndex = Math.min(page * size, totalElements);
+        int toIndex = Math.min(fromIndex + size, totalElements);
+
+        List<Product> pagedList = filtered.subList(fromIndex, toIndex);
+
+        List<ResProduct> list = pagedList.stream()
                 .map(this::toResProduct)
                 .toList();
 
         ResPageable response = ResPageable.builder()
                 .page(page)
                 .size(size)
-                .totalElements(products.getTotalElements())
-                .totalPage(products.getTotalPages())
+                .totalElements((long) totalElements)
+                .totalPage((int) Math.ceil((double) totalElements / size))
                 .body(list)
                 .build();
 
@@ -201,14 +214,6 @@ public class ProductServiceImpl implements ProductService {
         return ApiResponse.success(response);
     }
 
-    @Scheduled(fixedRate = 3_600_000)
-    @Transactional
-    public void deactivateOldProducts() {
-        LocalDateTime twoDaysAgo = LocalDateTime.now().minusHours(48);
-
-        productRepository.deactivateProductsOlderThanAndNotCompany(twoDaysAgo, UserRole.COMPANY);
-    }
-
     // Helper methods
     private Category getCategoryById(UUID id) {
         return categoryRepository.findById(id)
@@ -228,6 +233,15 @@ public class ProductServiceImpl implements ProductService {
     private Product getActiveProductByIdAndOwner(UUID id, UUID ownerId) {
         return productRepository.findByIdAndOwnerIdAndActiveTrue(id, ownerId)
                 .orElseThrow(() -> new DataNotFoundException("Mahsulot topilmadi yoki sizga tegishli emas"));
+    }
+
+    private List<Product> initOrIntersect(List<Product> base, List<Product> next) {
+        if (base == null) {
+            return new ArrayList<>(next);
+        }
+
+        base.retainAll(next);
+        return base;
     }
 
     private void saveProductPrices(Product product, List<ReqProductPrice> prices) {
